@@ -70,10 +70,19 @@ const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation })
         </View>
 
         <TouchableOpacity
-          style={styles.getStartedButton}
-          onPress={() => navigation.navigate('GetStarted')}
+          style={[styles.getStartedButton, !selectedRole && styles.getStartedButtonDisabled]}
+          onPress={() => {
+            if (selectedRole === 'walker') {
+              navigation.navigate('WalkerHome');
+            } else if (selectedRole === 'wanderer') {
+              navigation.navigate('WandererHome');
+            }
+          }}
+          disabled={!selectedRole}
         >
-          <Text style={styles.getStartedButtonText}>Get Started</Text>
+          <Text style={[styles.getStartedButtonText, !selectedRole && styles.getStartedButtonTextDisabled]}>
+            Get Started
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -175,6 +184,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  getStartedButtonDisabled: {
+    backgroundColor: '#CCCCCC',
+  },
+  getStartedButtonTextDisabled: {
+    color: '#999999',
   },
 });
 
