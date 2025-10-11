@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,24 +9,42 @@ import {
   Platform,
   SafeAreaView,
   Modal,
-  Animated,
-  Easing,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { authService } from '../services/authService';
+import { auth, db } from '../firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
 
 type WandererHomeScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
 const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) => {
-  const [pickup, setPickup] = useState('S3 Lifestyle Apartments, Pimple Saudagar');
-  const [destination, setDestination] = useState('Rose Icon, Pimple Saudagar');
+  const [pickup, setPickup] = useState('');
+  const [destination, setDestination] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
+  const [userName, setUserName] = useState('User Name');
 
-  // Animation for drawer slide-in
-  const [slideAnim] = useState(new Animated.Value(-300));
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setUserName(userData.name || 'User Name');
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+        }
+      }
+    };
+
+    fetchUserData();
+  }, []);
 
   const handleSignOut = async () => {
     await authService.signOut();
@@ -34,31 +52,31 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
 
   const openDrawer = () => {
     setMenuVisible(true);
-    Animated.timing(slideAnim, {
-      toValue: 0,
-      duration: 300,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: true,
-    }).start();
   };
 
   const closeDrawer = () => {
-    Animated.timing(slideAnim, {
-      toValue: -300,
-      duration: 250,
-      easing: Easing.in(Easing.ease),
-      useNativeDriver: true,
-    }).start(() => setMenuVisible(false));
+    setMenuVisible(false);
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Menu Button - hidden when drawer open */}
-      {!menuVisible && (
-        <TouchableOpacity style={styles.menuButton} onPress={openDrawer}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>
           <MaterialIcons name="menu" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-      )}
+        <TouchableOpacity style={styles.headerButton} onPress={() => {
+          // Navigate to notifications screen
+          // navigation.navigate('Notifications');
+        }}>
+          <MaterialIcons name="notifications" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Walking Person Icon Circle */}
+      <View style={styles.walkingIconCircle}>
+        <MaterialIcons name="directions-walk" size={24} color="#FFFFFF" />
+      </View>
 
       {/* Bottom Card */}
       <KeyboardAvoidingView
@@ -102,7 +120,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
             style={styles.bookButton}
             onPress={() => navigation.navigate('ScheduleDateTime')}
           >
-            <Text style={styles.bookButtonText}>Book a Walker</Text>
+            <Text style={styles.bookButtonText}>Book a Slot</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -110,36 +128,31 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
       {/* Drawer */}
       <Modal
         visible={menuVisible}
-        animationType="none"
+        animationType="fade"
         transparent
         onRequestClose={closeDrawer}
       >
-        <TouchableOpacity
-          style={styles.overlay}
-          activeOpacity={1}
-          onPressOut={closeDrawer}
-        >
-          <Animated.View
-            style={[
-              styles.drawer,
-              { transform: [{ translateX: slideAnim }] },
-            ]}
-          >
+        <View style={styles.overlay}>
+          <View style={styles.drawer}>
+            {/* Profile Header */}
             <TouchableOpacity 
-              style={[styles.drawerItem, styles.profileHeader]} 
+              style={styles.profileHeader} 
               onPress={() => {
                 closeDrawer();
                 navigation.navigate('Profile');
               }}
             >
-              <Text style={styles.drawerProfile}>👤  Profile</Text>
+              <View style={styles.profileCircle}>
+                <MaterialIcons name="person" size={40} color="#666" />
+              </View>
+              <Text style={styles.userName}>{userName}</Text>
             </TouchableOpacity>
 
+            {/* Menu Items */}
             <TouchableOpacity 
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
-                navigation.navigate('Home');
               }}
             >
               <Text style={styles.drawerText}>Home</Text>
@@ -149,33 +162,64 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
-                // navigation.navigate('Help');
+                // navigation.navigate('Notifications');
               }}
             >
-              <Text style={styles.drawerText}>Help & Privacy</Text>
+              <Text style={styles.drawerText}>Notifications</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
-                // navigation.navigate('Settings');
+                navigation.navigate('ContactUs');
+              }}
+            >
+              <Text style={styles.drawerText}>Contact Us</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('HelpPolicy');
+              }}
+            >
+              <Text style={styles.drawerText}>Help & Policy</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('Settings');
               }}
             >
               <Text style={styles.drawerText}>Settings</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.drawerItem, styles.signOutItem]} 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('About');
+              }}
+            >
+              <Text style={styles.drawerText}>About</Text>
+            </TouchableOpacity>
+
+            {/* Logout */}
+            <TouchableOpacity 
+              style={[styles.drawerItem, styles.logoutItem]} 
               onPress={() => { 
                 closeDrawer();
                 handleSignOut();
               }}
             >
-              <Text style={styles.signOutText}>Sign Out</Text>
+              <Text style={styles.logoutText}>Logout</Text>
             </TouchableOpacity>
-          </Animated.View>
-        </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -186,17 +230,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  menuButton: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
+  header: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 35,
+    paddingBottom: 10,
+    zIndex: 10,
+  },
+  headerButton: {
     width: 45,
     height: 45,
-    borderRadius: 22.5,
-    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
+  },
+  walkingIconCircle: {
+    position: 'absolute',
+    top: 110,
+    right: 15,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
   },
   bottomCard: {
     position: 'absolute',
@@ -251,41 +311,48 @@ const styles = StyleSheet.create({
   // Drawer
   overlay: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   drawer: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: '50%',
-    height: '100%',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingTop: 80,
-    paddingHorizontal: 25,
+    flex: 1,
+    paddingTop: 60,
+    paddingHorizontal: 30,
   },
-  drawerProfile: {
-    fontSize: 20,
-    color: '#FFF',
-    fontWeight: '700',
-    marginBottom: 30,
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 50,
+  },
+  profileCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  userName: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   drawerItem: {
-    marginBottom: 25,
+    marginBottom: 35,
   },
   drawerText: {
-    fontSize: 18,
-    color: '#FFF',
+    fontSize: 16,
+    color: '#FFFFFF',
     fontWeight: '500',
   },
-  signOutItem: {
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.3)',
+  logoutItem: {
+    position: 'absolute',
+    bottom: 50,
+    left: 30,
   },
-  signOutText: {
-    fontSize: 18,
-    color: '#FF6B6B',
+  logoutText: {
+    fontSize: 16,
+    color: '#FF0000',
     fontWeight: '600',
   },
 });

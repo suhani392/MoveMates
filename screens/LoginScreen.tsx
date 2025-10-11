@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Dimensions, ScrollView, Image, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { authService } from '../services/authService';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -16,6 +17,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { userData } = useAuth();
 
   const handleLogin = async () => {
@@ -54,13 +56,25 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
           />
 
           <Text style={styles.label}>Password :</Text>
-          <TextInput
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholderTextColor="#999"
-          />
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              placeholderTextColor="#999"
+            />
+            <TouchableOpacity
+              style={styles.eyeIcon}
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              <MaterialIcons
+                name={showPassword ? 'visibility' : 'visibility-off'}
+                size={24}
+                color="#666"
+              />
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity 
             style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
@@ -142,6 +156,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 24,
     color: '#000000',
+  },
+  passwordContainer: {
+    position: 'relative',
+    marginBottom: 24,
+  },
+  passwordInput: {
+    backgroundColor: '#D9D9D9',
+    borderRadius: 25,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingRight: 50,
+    fontSize: 16,
+    color: '#000000',
+    width: '100%',
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 20,
+    top: 16,
+    padding: 0,
   },
   loginButton: {
     backgroundColor: '#000000',

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Image, StyleSheet, Dimensions } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type SplashScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -8,11 +9,26 @@ type SplashScreenProps = {
 
 const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
   useEffect(() => {
-    const timer = setTimeout(() => {
-      navigation.replace('Onboarding');
-    }, 2500);
+    const checkOnboardingStatus = async () => {
+      try {
+        const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
+        
+        setTimeout(() => {
+          if (hasSeenOnboarding === 'true') {
+            navigation.replace('Login');
+          } else {
+            navigation.replace('Onboarding');
+          }
+        }, 2500);
+      } catch (error) {
+        console.error('Error checking onboarding status:', error);
+        setTimeout(() => {
+          navigation.replace('Onboarding');
+        }, 2500);
+      }
+    };
 
-    return () => clearTimeout(timer);
+    checkOnboardingStatus();
   }, [navigation]);
 
   return (

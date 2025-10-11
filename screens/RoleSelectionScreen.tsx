@@ -3,13 +3,12 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Alert } from 'rea
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { authService } from '../services/authService';
+import { RootStackParamList } from '../App';
 
 type RoleSelectionScreenProps = {
-  navigation: StackNavigationProp<any>;
-  route: RouteProp<any, 'RoleSelection'>;
+  navigation: StackNavigationProp<RootStackParamList, 'RoleSelection'>;
+  route: RouteProp<RootStackParamList, 'RoleSelection'>;
 };
-
-const { width } = Dimensions.get('window');
 
 const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation, route }) => {
   const [selectedRole, setSelectedRole] = useState<'walker' | 'wanderer' | null>(null);
@@ -25,38 +24,8 @@ const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation, r
       // For existing users, go to permissions then login
       navigation.navigate('Permissions', { selectedRole, isExistingUser: true });
     } else if (userData) {
-      // For new users, create account
-      setIsLoading(true);
-      
-      const result = await authService.signUp(
-        userData.email,
-        userData.password,
-        {
-          name: `${userData.firstName} ${userData.lastName}`,
-          phone: userData.phoneNumber,
-          role: selectedRole
-        }
-      );
-
-      setIsLoading(false);
-
-      if (result.success) {
-        if (selectedRole === 'walker') {
-          Alert.alert(
-            'Account Created', 
-            'Your account has been created. You will receive access once an admin approves your request.',
-            [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
-          );
-        } else {
-          Alert.alert(
-            'Account Created', 
-            'Welcome to MoveMates! You can now log in.',
-            [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
-          );
-        }
-      } else {
-        Alert.alert('Error', result.error);
-      }
+      // For new users, navigate to profile details screen
+      navigation.navigate('ProfileDetails', { userData, selectedRole });
     } else {
       // Navigate to permissions for new users
       navigation.navigate('Permissions', { selectedRole });
@@ -66,7 +35,6 @@ const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation, r
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Select your role</Text>
         <Text style={styles.subtitle}>
           Select the role you would like to opt for in MoveMates :
         </Text>

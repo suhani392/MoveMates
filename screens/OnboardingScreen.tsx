@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, FlatList, NativeScrollEvent, NativeSyntheticEvent, Image } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type OnboardingScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -42,10 +43,15 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
     setCurrentIndex(index);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentIndex < onboardingData.length - 1) {
       flatListRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
     } else {
+      try {
+        await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+      } catch (error) {
+        console.error('Error saving onboarding status:', error);
+      }
       navigation.navigate('SignUp');
     }
   };

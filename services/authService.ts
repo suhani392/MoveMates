@@ -13,6 +13,14 @@ import {
       name: string;
       phone: string;
       role: 'wanderer' | 'walker';
+      age?: number;
+      walkingPace?: string;
+      hobbies?: string;
+      languages?: string;
+      about?: string;
+      pricePerHour?: number;
+      experience?: string;
+      documents?: string[];
     }) {
       try {
         // Create Firebase user
@@ -28,6 +36,17 @@ import {
           role: userData.role,
           approved: userData.role === 'wanderer' ? true : false, // Wanderers auto-approved, Walkers need approval
           createdAt: new Date(),
+          // Profile details
+          age: userData.age,
+          walkingPace: userData.walkingPace,
+          hobbies: userData.hobbies,
+          languages: userData.languages,
+          about: userData.about,
+          ...(userData.role === 'walker' && {
+            pricePerHour: userData.pricePerHour,
+            experience: userData.experience,
+            documents: userData.documents,
+          }),
         };
   
         await setDoc(doc(db, 'users', user.uid), userDoc);

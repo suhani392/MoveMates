@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Dimensions, ScrollView, Image, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { MaterialIcons } from '@expo/vector-icons';
 
 type SignUpScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -15,6 +16,8 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSignUp = () => {
     // Basic validation
@@ -52,28 +55,23 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         <Text style={styles.subtitle}>Enter your details to get started with MoveMates</Text>
 
         <View style={styles.formContainer}>
-          <View style={styles.nameRow}>
-            <View style={styles.nameInput}>
-              <Text style={styles.label}>First Name :</Text>
-              <TextInput
-                style={styles.input}
-                value={firstName}
-                onChangeText={setFirstName}
-                placeholder="Enter first name"
-                placeholderTextColor="#999"
-              />
-            </View>
-            <View style={styles.nameInput}>
-              <Text style={styles.label}>Last Name :</Text>
-              <TextInput
-                style={styles.input}
-                value={lastName}
-                onChangeText={setLastName}
-                placeholder="Enter last name"
-                placeholderTextColor="#999"
-              />
-            </View>
-          </View>
+          <Text style={styles.label}>First Name :</Text>
+          <TextInput
+            style={styles.input}
+            value={firstName}
+            onChangeText={setFirstName}
+            placeholder="Enter first name"
+            placeholderTextColor="#999"
+          />
+
+          <Text style={styles.label}>Last Name :</Text>
+          <TextInput
+            style={styles.input}
+            value={lastName}
+            onChangeText={setLastName}
+            placeholder="Enter last name"
+            placeholderTextColor="#999"
+          />
 
           <Text style={styles.label}>Email :</Text>
           <TextInput
@@ -97,24 +95,48 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
           />
 
           <Text style={styles.label}>Password :</Text>
-          <TextInput
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholder="Enter your password"
-            placeholderTextColor="#999"
-          />
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              placeholder="Enter your password"
+              placeholderTextColor="#999"
+            />
+            <TouchableOpacity
+              style={styles.eyeIcon}
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              <MaterialIcons
+                name={showPassword ? 'visibility' : 'visibility-off'}
+                size={24}
+                color="#666"
+              />
+            </TouchableOpacity>
+          </View>
 
           <Text style={styles.label}>Confirm Password :</Text>
-          <TextInput
-            style={styles.input}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            placeholder="Confirm your password"
-            placeholderTextColor="#999"
-          />
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!showConfirmPassword}
+              placeholder="Confirm your password"
+              placeholderTextColor="#999"
+            />
+            <TouchableOpacity
+              style={styles.eyeIcon}
+              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+            >
+              <MaterialIcons
+                name={showConfirmPassword ? 'visibility' : 'visibility-off'}
+                size={24}
+                color="#666"
+              />
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity 
             style={styles.signupButton}
@@ -166,23 +188,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#000000',
     marginBottom: 12,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 15,
     color: '#666666',
     marginBottom: 40,
+    lineHeight: 24,
   },
   formContainer: {
     marginBottom: 30,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  nameInput: {
-    flex: 1,
-    marginRight: 10,
   },
   label: {
     fontSize: 16,
@@ -198,6 +213,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 24,
     color: '#000000',
+  },
+  passwordContainer: {
+    position: 'relative',
+    marginBottom: 24,
+  },
+  passwordInput: {
+    backgroundColor: '#D9D9D9',
+    borderRadius: 25,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingRight: 50,
+    fontSize: 16,
+    color: '#000000',
+    width: '100%',
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 20,
+    top: 16,
+    padding: 0,
   },
   signupButton: {
     backgroundColor: '#000000',
