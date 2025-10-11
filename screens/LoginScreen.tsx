@@ -1,16 +1,40 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Dimensions, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Dimensions, ScrollView, Image, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp } from '@react-navigation/native';
+import { authService } from '../services/authService';
+import { useAuth } from '../contexts/AuthContext';
 
 type LoginScreenProps = {
   navigation: StackNavigationProp<any>;
+  route: RouteProp<any, 'Login'>;
 };
 
 const { width } = Dimensions.get('window');
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { userData } = useAuth();
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
+    }
+
+    setIsLoading(true);
+    const result = await authService.signIn(email, password);
+    setIsLoading(false);
+
+    if (result.success) {
+      // Navigation will be handled by the AuthProvider
+      // based on userData.role and userData.approved
+    } else {
+      Alert.alert('Error', result.error);
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
@@ -39,10 +63,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           />
 
           <TouchableOpacity 
-            style={styles.loginButton}
-            onPress={() => navigation.navigate('Permissions')}
+            style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+            onPress={handleLogin}
+            disabled={isLoading}
           >
-            <Text style={styles.loginButtonText}>Login</Text>
+            <Text style={styles.loginButtonText}>
+              {isLoading ? 'Logging in...' : 'Login'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.forgotPassword}>
@@ -123,6 +150,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     marginBottom: 16,
+  },
+  loginButtonDisabled: {
+    backgroundColor: '#CCCCCC',
   },
   loginButtonText: {
     color: '#FFFFFF',

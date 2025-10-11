@@ -46,7 +46,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
     if (currentIndex < onboardingData.length - 1) {
       flatListRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
     } else {
-      navigation.navigate('Login');
+      navigation.navigate('SignUp');
     }
   };
 

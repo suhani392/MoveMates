@@ -1,15 +1,67 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp } from '@react-navigation/native';
+import { authService } from '../services/authService';
 
 type RoleSelectionScreenProps = {
   navigation: StackNavigationProp<any>;
+  route: RouteProp<any, 'RoleSelection'>;
 };
 
 const { width } = Dimensions.get('window');
 
-const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation }) => {
+const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation, route }) => {
   const [selectedRole, setSelectedRole] = useState<'walker' | 'wanderer' | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleContinue = async () => {
+    if (!selectedRole) return;
+
+    const userData = route?.params?.userData;
+    const isExistingUser = route?.params?.isExistingUser;
+
+    if (isExistingUser) {
+      // For existing users, go to permissions then login
+      navigation.navigate('Permissions', { selectedRole, isExistingUser: true });
+    } else if (userData) {
+      // For new users, create account
+      setIsLoading(true);
+      
+      const result = await authService.signUp(
+        userData.email,
+        userData.password,
+        {
+          name: `${userData.firstName} ${userData.lastName}`,
+          phone: userData.phoneNumber,
+          role: selectedRole
+        }
+      );
+
+      setIsLoading(false);
+
+      if (result.success) {
+        if (selectedRole === 'walker') {
+          Alert.alert(
+            'Account Created', 
+            'Your account has been created. You will receive access once an admin approves your request.',
+            [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+          );
+        } else {
+          Alert.alert(
+            'Account Created', 
+            'Welcome to MoveMates! You can now log in.',
+            [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+          );
+        }
+      } else {
+        Alert.alert('Error', result.error);
+      }
+    } else {
+      // Navigate to permissions for new users
+      navigation.navigate('Permissions', { selectedRole });
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -20,37 +72,13 @@ const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation })
         </Text>
 
         <View style={styles.rolesContainer}>
-          {/* Walker Role */}
-          <TouchableOpacity
-            style={[
-              styles.roleCard,
-              styles.walkerCard,
-              selectedRole === 'walker' && styles.roleCardPressed,
-              selectedRole === 'walker' && styles.walkerCardSelected, // Add this line
-            ]}
-            onPress={() => setSelectedRole('walker')}
-            activeOpacity={1}
-          >
-            <View style={styles.roleContent}>
-              <View style={styles.roleLeft}>
-                <Text style={styles.roleTitle}>Walker</Text>
-              </View>
-              <View style={styles.divider} />
-              <View style={styles.roleRight}>
-                <Text style={styles.roleDescription}>
-                  Join as a trusted walking partner. Set your availability, accept requests, earn from walks, and help others walk safely.
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-
           {/* Wanderer Role */}
           <TouchableOpacity
             style={[
               styles.roleCard,
               styles.wandererCard,
               selectedRole === 'wanderer' && styles.roleCardPressed,
-              selectedRole === 'wanderer' && styles.wandererCardSelected, // Add this line
+              selectedRole === 'wanderer' && styles.wandererCardSelected,
             ]}
             onPress={() => setSelectedRole('wanderer')}
             activeOpacity={1}
@@ -67,21 +95,39 @@ const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation })
               </View>
             </View>
           </TouchableOpacity>
+
+          {/* Walker Role */}
+          <TouchableOpacity
+            style={[
+              styles.roleCard,
+              styles.walkerCard,
+              selectedRole === 'walker' && styles.roleCardPressed,
+              selectedRole === 'walker' && styles.walkerCardSelected,
+            ]}
+            onPress={() => setSelectedRole('walker')}
+            activeOpacity={1}
+          >
+            <View style={styles.roleContent}>
+              <View style={styles.roleLeft}>
+                <Text style={styles.roleTitle}>Walker</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.roleRight}>
+                <Text style={styles.roleDescription}>
+                  Join as a trusted walking partner. Set your availability, accept requests, earn from walks, and help others walk safely.
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
         </View>
 
         <TouchableOpacity
-          style={[styles.getStartedButton, !selectedRole && styles.getStartedButtonDisabled]}
-          onPress={() => {
-            if (selectedRole === 'walker') {
-              navigation.navigate('WalkerHome');
-            } else if (selectedRole === 'wanderer') {
-              navigation.navigate('WandererHome');
-            }
-          }}
-          disabled={!selectedRole}
+          style={[styles.getStartedButton, (!selectedRole || isLoading) && styles.getStartedButtonDisabled]}
+          onPress={handleContinue}
+          disabled={!selectedRole || isLoading}
         >
-          <Text style={[styles.getStartedButtonText, !selectedRole && styles.getStartedButtonTextDisabled]}>
-            Get Started
+          <Text style={[styles.getStartedButtonText, (!selectedRole || isLoading) && styles.getStartedButtonTextDisabled]}>
+            {isLoading ? 'Creating Account...' : 'Continue'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -121,8 +167,8 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     marginBottom: 24,
     borderWidth: 0,
-    height: 200, // Add fixed height
-    width: '100%', // Add fixed width
+    height: 200,
+    width: '100%',
   },
   walkerCard: {
     backgroundColor: '#E8F6E9',

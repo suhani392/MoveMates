@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Modal, Animated, Easing } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { MaterialIcons } from '@expo/vector-icons';
+import { authService } from '../services/authService';
 
 type WalkerHomeScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -9,18 +10,41 @@ type WalkerHomeScreenProps = {
 
 const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
   const [isOnline, setIsOnline] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [slideAnim] = useState(new Animated.Value(-300));
+
+  const handleSignOut = async () => {
+    await authService.signOut();
+  };
+
+  const openDrawer = () => {
+    setMenuVisible(true);
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 300,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeDrawer = () => {
+    Animated.timing(slideAnim, {
+      toValue: -300,
+      duration: 250,
+      easing: Easing.in(Easing.ease),
+      useNativeDriver: true,
+    }).start(() => setMenuVisible(false));
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.menuButton}>
+        <TouchableOpacity style={styles.menuButton} onPress={openDrawer}>
           <MaterialIcons name="menu" size={24} color="#000000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Walker Dashboard</Text>
-        <TouchableOpacity style={styles.profileButton}>
-          <MaterialIcons name="account-circle" size={24} color="#000000" />
-        </TouchableOpacity>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -110,6 +134,77 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
+
+      {/* Navigation Drawer */}
+      <Modal
+        visible={menuVisible}
+        animationType="none"
+        transparent
+        onRequestClose={closeDrawer}
+      >
+        <TouchableOpacity
+          style={styles.overlay}
+          activeOpacity={1}
+          onPressOut={closeDrawer}
+        >
+          <Animated.View
+            style={[
+              styles.drawer,
+              { transform: [{ translateX: slideAnim }] },
+            ]}
+          >
+            <TouchableOpacity 
+              style={[styles.drawerItem, styles.profileHeader]} 
+              onPress={() => {
+                closeDrawer();
+                navigation.navigate('Profile');
+              }}
+            >
+              <Text style={styles.drawerProfile}>👤  Profile</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                // Refresh dashboard
+              }}
+            >
+              <Text style={styles.drawerText}>Dashboard</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                // Could navigate to settings
+              }}
+            >
+              <Text style={styles.drawerText}>Settings</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                // Could navigate to help
+              }}
+            >
+              <Text style={styles.drawerText}>Help & Privacy</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.drawerItem, styles.signOutItem]} 
+              onPress={() => { 
+                closeDrawer();
+                handleSignOut();
+              }}
+            >
+              <Text style={styles.signOutText}>Sign Out</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -136,8 +231,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#000000',
   },
-  profileButton: {
-    padding: 5,
+  headerSpacer: {
+    width: 34, // Same width as menu button to center title
   },
   content: {
     flex: 1,
@@ -294,6 +389,46 @@ const styles = StyleSheet.create({
     color: '#000000',
     marginTop: 8,
     textAlign: 'center',
+  },
+  // Drawer styles
+  overlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  drawer: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: '50%',
+    height: '100%',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingTop: 80,
+    paddingHorizontal: 25,
+  },
+  drawerProfile: {
+    fontSize: 20,
+    color: '#FFF',
+    fontWeight: '700',
+    marginBottom: 30,
+  },
+  drawerItem: {
+    marginBottom: 25,
+  },
+  drawerText: {
+    fontSize: 18,
+    color: '#FFF',
+    fontWeight: '500',
+  },
+  signOutItem: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.3)',
+  },
+  signOutText: {
+    fontSize: 18,
+    color: '#FF6B6B',
+    fontWeight: '600',
   },
 });
 

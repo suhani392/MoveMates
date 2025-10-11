@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { authService } from '../services/authService';
 
 type WandererHomeScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -26,6 +27,10 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
 
   // Animation for drawer slide-in
   const [slideAnim] = useState(new Animated.Value(-300));
+
+  const handleSignOut = async () => {
+    await authService.signOut();
+  };
 
   const openDrawer = () => {
     setMenuVisible(true);
@@ -159,6 +164,16 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
             >
               <Text style={styles.drawerText}>Settings</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.drawerItem, styles.signOutItem]} 
+              onPress={() => { 
+                closeDrawer();
+                handleSignOut();
+              }}
+            >
+              <Text style={styles.signOutText}>Sign Out</Text>
+            </TouchableOpacity>
           </Animated.View>
         </TouchableOpacity>
       </Modal>
@@ -261,6 +276,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#FFF',
     fontWeight: '500',
+  },
+  signOutItem: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.3)',
+  },
+  signOutText: {
+    fontSize: 18,
+    color: '#FF6B6B',
+    fontWeight: '600',
   },
 });
 

@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp } from '@react-navigation/native';
 
 type PermissionsScreenProps = {
   navigation: StackNavigationProp<any>;
+  route: RouteProp<any, 'Permissions'>;
 };
 
-const PermissionsScreen: React.FC<PermissionsScreenProps> = ({ navigation }) => {
+const PermissionsScreen: React.FC<PermissionsScreenProps> = ({ navigation, route }) => {
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [contactsEnabled, setContactsEnabled] = useState(false);
   const [notificationEnabled, setNotificationEnabled] = useState(false);
@@ -109,7 +111,10 @@ const PermissionsScreen: React.FC<PermissionsScreenProps> = ({ navigation }) => 
 
         <TouchableOpacity
           style={styles.allowButton}
-          onPress={() => navigation.navigate('RoleSelection')}
+          onPress={() => navigation.navigate('Login', { 
+            selectedRole: route?.params?.selectedRole,
+            isExistingUser: route?.params?.isExistingUser 
+          })}
         >
           <Text style={styles.allowButtonText}>Allow the permissions</Text>
         </TouchableOpacity>

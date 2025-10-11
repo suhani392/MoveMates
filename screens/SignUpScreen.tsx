@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Dimensions, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Dimensions, ScrollView, Image, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 type SignUpScreenProps = {
@@ -9,25 +9,71 @@ type SignUpScreenProps = {
 const { width } = Dimensions.get('window');
 
 const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+
+  const handleSignUp = () => {
+    // Basic validation
+    if (!firstName || !lastName || !email || !password || !confirmPassword || !phoneNumber) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+    
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+    
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long');
+      return;
+    }
+    
+    // Navigate to role selection with user data
+    navigation.navigate('RoleSelection', {
+      userData: {
+        firstName,
+        lastName,
+        email,
+        password,
+        phoneNumber
+      }
+    });
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.content}>
         <Text style={styles.title}>Create your account</Text>
-        <Text style={styles.subtitle}>Enter your credentials to create an account</Text>
+        <Text style={styles.subtitle}>Enter your details to get started with MoveMates</Text>
 
         <View style={styles.formContainer}>
-          <Text style={styles.label}>Name :</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholderTextColor="#999"
-          />
+          <View style={styles.nameRow}>
+            <View style={styles.nameInput}>
+              <Text style={styles.label}>First Name :</Text>
+              <TextInput
+                style={styles.input}
+                value={firstName}
+                onChangeText={setFirstName}
+                placeholder="Enter first name"
+                placeholderTextColor="#999"
+              />
+            </View>
+            <View style={styles.nameInput}>
+              <Text style={styles.label}>Last Name :</Text>
+              <TextInput
+                style={styles.input}
+                value={lastName}
+                onChangeText={setLastName}
+                placeholder="Enter last name"
+                placeholderTextColor="#999"
+              />
+            </View>
+          </View>
 
           <Text style={styles.label}>Email :</Text>
           <TextInput
@@ -36,15 +82,17 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            placeholder="Enter your email"
             placeholderTextColor="#999"
           />
 
           <Text style={styles.label}>Phone Number :</Text>
           <TextInput
             style={styles.input}
-            value={phone}
-            onChangeText={setPhone}
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
             keyboardType="phone-pad"
+            placeholder="Enter your phone number"
             placeholderTextColor="#999"
           />
 
@@ -54,14 +102,25 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+            placeholder="Enter your password"
+            placeholderTextColor="#999"
+          />
+
+          <Text style={styles.label}>Confirm Password :</Text>
+          <TextInput
+            style={styles.input}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            placeholder="Confirm your password"
             placeholderTextColor="#999"
           />
 
           <TouchableOpacity 
             style={styles.signupButton}
-            onPress={() => navigation.navigate('Permissions')}
+            onPress={handleSignUp}
           >
-            <Text style={styles.signupButtonText}>Sign Up</Text>
+            <Text style={styles.signupButtonText}>Create Account</Text>
           </TouchableOpacity>
         </View>
 
@@ -74,8 +133,15 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
             source={{ uri: 'https://www.google.com/favicon.ico' }}
             style={styles.googleIcon}
           />
-          <Text style={styles.googleButtonText}>Sign Up using Google</Text>
+          <Text style={styles.googleButtonText}>Sign up using Google</Text>
         </TouchableOpacity>
+
+        <View style={styles.loginContainer}>
+          <Text style={styles.loginText}>Already have an account?</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+            <Text style={styles.loginLink}>Login here</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );
@@ -109,6 +175,15 @@ const styles = StyleSheet.create({
   formContainer: {
     marginBottom: 30,
   },
+  nameRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  nameInput: {
+    flex: 1,
+    marginRight: 10,
+  },
   label: {
     fontSize: 16,
     color: '#000000',
@@ -130,6 +205,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 10,
+    marginBottom: 16,
   },
   signupButtonText: {
     color: '#FFFFFF',
@@ -152,6 +228,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 30,
   },
   googleIcon: {
     width: 24,
@@ -161,6 +238,19 @@ const styles = StyleSheet.create({
   googleButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  loginContainer: {
+    alignItems: 'center',
+  },
+  loginText: {
+    fontSize: 15,
+    color: '#000000',
+    marginBottom: 8,
+  },
+  loginLink: {
+    fontSize: 15,
+    color: '#4285F4',
     fontWeight: '600',
   },
 });
