@@ -74,9 +74,13 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
       </View>
 
       {/* Walking Person Icon Circle */}
-      <View style={styles.walkingIconCircle}>
+      <TouchableOpacity 
+        style={styles.walkingIconCircle}
+        onPress={() => navigation.navigate('WalkerUpdates')}
+        activeOpacity={0.8}
+      >
         <MaterialIcons name="directions-walk" size={24} color="#FFFFFF" />
-      </View>
+      </TouchableOpacity>
 
       {/* Bottom Card */}
       <KeyboardAvoidingView
@@ -257,6 +261,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 5,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   bottomCard: {
     position: 'absolute',

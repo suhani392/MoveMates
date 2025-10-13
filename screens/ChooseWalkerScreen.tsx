@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,97 +7,183 @@ import {
   ScrollView,
   SafeAreaView,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp } from '@react-navigation/native';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 type ChooseWalkerScreenProps = {
   navigation: StackNavigationProp<any>;
+  route: RouteProp<{ params: { scheduleData?: any } }, 'params'>;
 };
 
 interface Walker {
   id: string;
+  uid: string;
   name: string;
-  pace: string;
-  price: number;
-  rating: number;
-  available: boolean;
+  email: string;
+  phone: string;
+  walkingPace: string;
+  pricePerHour: number;
+  age: number;
+  experience: string;
+  languages: string;
+  hobbies: string;
+  about: string;
+  approved: boolean;
+  createdAt: any;
+  role: string;
   image?: string;
+  rating?: number;
+  available?: boolean;
+  isOnline?: boolean;
+  currentWalkStatus?: 'idle' | 'busy' | 'offline';
 }
 
-const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation }) => {
-  const walkers: Walker[] = [
-    {
-      id: '1',
-      name: 'Sahil Pranjale',
-      pace: 'Moderate',
-      price: 100,
-      rating: 4.9,
-      available: true,
-    },
-    {
-      id: '2',
-      name: 'Mitali Dombre',
-      pace: 'Fast',
-      price: 80,
-      rating: 4.1,
-      available: false,
-    },
-    {
-      id: '3',
-      name: 'Suhani Badhe',
-      pace: 'Slow',
-      price: 50,
-      rating: 5.0,
-      available: true,
-    },
-    {
-      id: '4',
-      name: 'Samruddhi Dhawade',
-      pace: 'Slow',
-      price: 50,
-      rating: 3.9,
-      available: true,
-    },
-  ];
+const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, route }) => {
+  const scheduleData = route.params?.scheduleData;
+  const [walkers, setWalkers] = useState<Walker[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const formatScheduleInfo = () => {
+    if (!scheduleData) return null;
+    
+    const dateObj = new Date(scheduleData.date);
+    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+    const dateStr = dateObj.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+    
+    return {
+      day: dayName,
+      date: dateStr,
+      time: scheduleData.time,
+    };
+  };
+
+  const scheduleInfo = formatScheduleInfo();
+
+  // Fetch walkers from Firestore (users with role "walker" and approved)
+  useEffect(() => {
+    const usersRef = collection(db, 'users');
+    const walkersQuery = query(
+      usersRef, 
+      where('role', '==', 'walker'),
+      where('approved', '==', true)
+    );
+
+    const unsubscribe = onSnapshot(
+      walkersQuery,
+      (snapshot) => {
+        console.log('Firestore query returned:', snapshot.size, 'walkers');
+        
+        if (!snapshot.empty) {
+          const walkersList: Walker[] = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            console.log('Walker data:', data);
+            // Determine availability based on multiple factors
+            const isOnline = data.isOnline || false;
+            const currentWalkStatus = data.currentWalkStatus || 'offline';
+            const availableToggle = data.available !== undefined ? data.available : true;
+            
+            // Walker is available only if:
+            // 1. They have set available toggle to true
+            // 2. They are online
+            // 3. They are not busy in a walk
+            const isAvailable = availableToggle && isOnline && currentWalkStatus !== 'busy';
+            
+            return {
+              id: doc.id,
+              uid: data.uid || doc.id,
+              name: data.name || '---',
+              email: data.email || '',
+              phone: data.phone || '',
+              walkingPace: data.walkingPace || '---',
+              pricePerHour: data.pricePerHour || 0,
+              age: data.age || 0,
+              experience: data.experience || '',
+              languages: data.languages || '',
+              hobbies: data.hobbies || '',
+              about: data.about || '',
+              approved: data.approved || false,
+              createdAt: data.createdAt,
+              role: data.role || 'walker',
+              image: data.image || data.profileImage || undefined,
+              rating: data.rating || 0,
+              available: isAvailable,
+              isOnline: isOnline,
+              currentWalkStatus: currentWalkStatus,
+            };
+          });
+          console.log('Walkers list created:', walkersList);
+          setWalkers(walkersList);
+        } else {
+          console.log('No walkers found in Firestore');
+          setWalkers([]);
+        }
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error fetching walkers:', error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   const renderWalkerCard = (walker: Walker) => {
     return (
-      <View key={walker.id} style={styles.walkerCard}>
+      <TouchableOpacity 
+        key={walker.id} 
+        style={styles.walkerCard}
+        onPress={() => navigation.navigate('WalkerDetails', { walker })}
+        activeOpacity={0.7}
+      >
         <View style={styles.cardContent}>
-          {/* Profile Image Placeholder */}
+          {/* Profile Image with Rating Badge */}
           <View style={styles.profileImageContainer}>
             <View style={styles.profileImage}>
-              <MaterialIcons name="person" size={60} color="#CCCCCC" />
+              {walker.image ? (
+                <Image source={{ uri: walker.image }} style={styles.profileImageActual} />
+              ) : (
+                <MaterialIcons name="person" size={60} color="#CCCCCC" />
+              )}
+            </View>
+            {/* Rating Badge on Bottom Right */}
+            <View style={styles.ratingBadge}>
+              <MaterialIcons name="star" size={14} color="#FFC107" />
+              <Text style={styles.ratingBadgeText}>{walker.rating || 0}</Text>
             </View>
           </View>
 
           {/* Walker Info */}
           <View style={styles.walkerInfo}>
-            <Text style={styles.walkerName}>{walker.name}</Text>
-            <Text style={styles.walkerDetail}>Pace : {walker.pace}</Text>
-            <Text style={styles.walkerDetail}>Price : Rs. {walker.price}/hour</Text>
-            
-            {/* Rating */}
-            <View style={styles.ratingContainer}>
-              <MaterialIcons name="star" size={16} color="#FFC107" />
-              <Text style={styles.ratingText}>{walker.rating}</Text>
-            </View>
-          </View>
-
-          {/* Availability Badge */}
-          <View style={styles.availabilityContainer}>
-            <View style={[
-              styles.availabilityBadge,
-              walker.available ? styles.availableBadge : styles.unavailableBadge
-            ]}>
-              <Text style={styles.availabilityText}>
-                {walker.available ? 'Available' : 'Unavailable'}
-              </Text>
-            </View>
+            <Text style={styles.walkerName}>{walker.name || '---'}</Text>
+            <Text style={styles.walkerDetail}>Pace: {walker.walkingPace || '---'}</Text>
+            <Text style={styles.walkerPrice}>
+              {walker.pricePerHour ? `₹${walker.pricePerHour}/hour` : '---'}
+            </Text>
           </View>
         </View>
-      </View>
+
+        {/* Availability Badge - Bottom Right of Card */}
+        <View style={styles.availabilityBadgeContainer}>
+          <View style={[
+            styles.availabilityBadge,
+            walker.available ? styles.availableBadge : styles.unavailableBadge
+          ]}>
+            <Text style={styles.availabilityText}>
+              {walker.available ? 'Available' : 'Unavailable'}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -113,16 +199,43 @@ const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation }) =
           <View style={{ width: 28 }} />
         </View>
 
+        {/* Schedule Info Display */}
+        {scheduleInfo && (
+          <View style={styles.scheduleInfoContainer}>
+            <Text style={styles.scheduleInfoTitle}>
+              The schedule you have selected is:
+            </Text>
+            <Text style={styles.scheduleInfoText}>
+              {scheduleInfo.day}, {scheduleInfo.date} at {scheduleInfo.time}
+            </Text>
+          </View>
+        )}
+
         {/* Subtitle */}
         <Text style={styles.subtitle}>
-          Choose a walker of your choice to enjoy your walk :
+          Choose a walker of your choice to enjoy your walk
         </Text>
 
         {/* Walkers Section */}
-        <Text style={styles.sectionTitle}>Walkers nearby :</Text>
+        <Text style={styles.sectionTitle}>Walkers nearby:</Text>
 
         {/* Walker Cards */}
-        {walkers.map((walker) => renderWalkerCard(walker))}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4CAF50" />
+            <Text style={styles.loadingText}>Loading walkers...</Text>
+          </View>
+        ) : walkers.length > 0 ? (
+          walkers.map((walker) => renderWalkerCard(walker))
+        ) : (
+          <View style={styles.noWalkersContainer}>
+            <MaterialIcons name="person-outline" size={60} color="#CCCCCC" />
+            <Text style={styles.noWalkersText}>No walkers enrolled yet</Text>
+            <Text style={styles.noWalkersSubtext}>
+              Check back later for available walkers
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -152,26 +265,47 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#000000',
   },
-  subtitle: {
+  scheduleInfoContainer: {
+    marginBottom: 20,
+  },
+  scheduleInfoTitle: {
     fontSize: 15,
+    color: '#666666',
+    marginBottom: 8,
+  },
+  scheduleInfoText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#000000',
+    lineHeight: 24,
+  },
+  subtitle: {
+    fontSize: 16,
     color: '#333333',
     marginBottom: 25,
-    lineHeight: 22,
+    lineHeight: 24,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 19,
+    fontWeight: '700',
     color: '#000000',
     marginBottom: 15,
   },
   walkerCard: {
     backgroundColor: '#E8F6E9',
     borderRadius: 20,
-    padding: 15,
+    padding: 20,
     marginBottom: 15,
+    minHeight: 160,
+    position: 'relative',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
   },
   cardContent: {
     flexDirection: 'row',
@@ -179,21 +313,50 @@ const styles = StyleSheet.create({
   },
   profileImageContainer: {
     marginRight: 15,
+    position: 'relative',
   },
   profileImage: {
-    width: 100,
-    height: 100,
+    width: 110,
+    height: 110,
     borderRadius: 15,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  profileImageActual: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  ratingBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  ratingBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#000000',
+    marginLeft: 2,
   },
   walkerInfo: {
     flex: 1,
   },
   walkerName: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#000000',
     marginBottom: 6,
   },
@@ -202,30 +365,21 @@ const styles = StyleSheet.create({
     color: '#333333',
     marginBottom: 4,
   },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginTop: 6,
+  walkerPrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4CAF50',
+    marginTop: 4,
   },
-  ratingText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#000000',
-    marginLeft: 4,
-  },
-  availabilityContainer: {
-    justifyContent: 'center',
-    alignItems: 'flex-end',
+  availabilityBadgeContainer: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
   },
   availabilityBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
   availableBadge: {
     backgroundColor: '#81C784',
@@ -234,9 +388,38 @@ const styles = StyleSheet.create({
     backgroundColor: '#E57373',
   },
   availabilityText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
     color: '#000000',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666666',
+    marginTop: 16,
+  },
+  noWalkersContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  noWalkersText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#666666',
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  noWalkersSubtext: {
+    fontSize: 14,
+    color: '#999999',
+    marginTop: 8,
+    textAlign: 'center',
   },
 });
 

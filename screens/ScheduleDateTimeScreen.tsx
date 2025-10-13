@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,10 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
 } from 'react-native';
+import { Calendar } from 'react-native-calendars';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 
@@ -14,152 +17,287 @@ type ScheduleDateTimeScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
+const ITEM_HEIGHT = 50;
+
 const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigation }) => {
-  const [selectedDate, setSelectedDate] = useState<number | null>(null);
+  // State management
+  const [selectedDate, setSelectedDate] = useState('');
   const [selectedHour, setSelectedHour] = useState(10);
-  const [selectedMinute, setSelectedMinute] = useState(15);
+  const [selectedMinute, setSelectedMinute] = useState(0);
   const [selectedPeriod, setSelectedPeriod] = useState<'AM' | 'PM'>('AM');
   const [selectedReminder, setSelectedReminder] = useState('None');
   const [selectedPreference, setSelectedPreference] = useState('Solo');
   const [selectedRecurrence, setSelectedRecurrence] = useState('None');
 
-  const currentMonth = 'October 2025';
-  const daysInMonth = 31;
-  const startDay = 3; // October 2025 starts on Wednesday
+  // Refs for ScrollViews
+  const hourScrollRef = useRef<ScrollView>(null);
+  const minuteScrollRef = useRef<ScrollView>(null);
 
-  const renderCalendar = () => {
-    const days = ['Sun', 'Mon', 'Tues', 'Wed', 'Thurs', 'Fri'];
-    const dates = [];
+  // Generate hours and minutes
+  const hours = Array.from({ length: 12 }, (_, i) => i + 1);
+  const minutes = Array.from({ length: 60 }, (_, i) => i);
 
-    // Add empty cells for days before the month starts
-    for (let i = 0; i < startDay; i++) {
-      dates.push(<View key={`empty-${i}`} style={styles.emptyDay} />);
+  // Initialize scroll positions
+  useEffect(() => {
+    setTimeout(() => {
+      hourScrollRef.current?.scrollTo({ y: (selectedHour - 1) * ITEM_HEIGHT, animated: false });
+      minuteScrollRef.current?.scrollTo({ y: selectedMinute * ITEM_HEIGHT, animated: false });
+    }, 100);
+  }, []);
+
+  const reminderOptions = ['None', '5 min before', '15 min before', '30 min before'];
+  const preferenceOptions = ['Solo', 'Group', 'Pet'];
+  const recurrenceOptions = ['None', 'Daily', 'Weekly'];
+
+  const handleChooseWalker = () => {
+    const scheduleData = {
+      date: selectedDate,
+      time: `${selectedHour.toString().padStart(2, '0')}:${selectedMinute.toString().padStart(2, '0')} ${selectedPeriod}`,
+      reminder: selectedReminder,
+      preference: selectedPreference,
+      recurrence: selectedRecurrence,
+    };
+    
+    console.log('Schedule Data:', scheduleData);
+    navigation.navigate('ChooseWalker', { scheduleData });
+  };
+
+  const handleHourScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const index = Math.round(offsetY / ITEM_HEIGHT);
+    if (index >= 0 && index < hours.length) {
+      setSelectedHour(hours[index]);
     }
+  };
 
-    // Add date cells
-    for (let i = 1; i <= daysInMonth; i++) {
-      dates.push(
-        <TouchableOpacity
-          key={i}
-          style={[
-            styles.dateCell,
-            selectedDate === i && styles.selectedDate,
-          ]}
-          onPress={() => setSelectedDate(i)}
+  const handleMinuteScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const index = Math.round(offsetY / ITEM_HEIGHT);
+    if (index >= 0 && index < minutes.length) {
+      setSelectedMinute(minutes[index]);
+    }
+  };
+
+  const renderScrollPicker = (
+    data: number[],
+    selectedValue: number,
+    scrollRef: React.RefObject<ScrollView | null>,
+    onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void,
+    type: 'hour' | 'minute'
+  ) => {
+    return (
+      <View style={styles.scrollPickerContainer}>
+        {/* Selection indicator overlay - behind the numbers */}
+        <View style={styles.selectionIndicator} pointerEvents="none" />
+        <ScrollView
+          ref={scrollRef}
+          showsVerticalScrollIndicator={false}
+          snapToInterval={ITEM_HEIGHT}
+          decelerationRate="fast"
+          onMomentumScrollEnd={onScroll}
+          onScrollEndDrag={onScroll}
+          contentContainerStyle={styles.scrollPickerContent}
+          nestedScrollEnabled={true}
+          scrollEnabled={true}
         >
-          <Text style={[
-            styles.dateText,
-            selectedDate === i && styles.selectedDateText,
-          ]}>
-            {i}
-          </Text>
-        </TouchableOpacity>
-      );
-    }
-
-    return (
-      <View style={styles.calendarContainer}>
-        <View style={styles.calendarHeader}>
-          <TouchableOpacity>
-            <MaterialIcons name="chevron-left" size={24} color="#000" />
-          </TouchableOpacity>
-          <Text style={styles.monthText}>{currentMonth}</Text>
-          <TouchableOpacity>
-            <MaterialIcons name="chevron-right" size={24} color="#000" />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.daysHeader}>
-          {days.map((day) => (
-            <Text key={day} style={styles.dayHeaderText}>{day}</Text>
-          ))}
-        </View>
-        <View style={styles.datesGrid}>{dates}</View>
+          {data.map((item, index) => {
+            const isSelected = item === selectedValue;
+            return (
+              <TouchableOpacity
+                key={index}
+                style={styles.wheelItem}
+                onPress={() => {
+                  scrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true });
+                  if (type === 'hour') {
+                    setSelectedHour(item);
+                  } else {
+                    setSelectedMinute(item);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.wheelItemText,
+                    isSelected && styles.wheelItemTextSelected,
+                  ]}
+                >
+                  {type === 'minute' ? item.toString().padStart(2, '0') : item.toString()}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
     );
   };
 
-  const renderTimePicker = () => {
-    return (
-      <View style={styles.timePickerContainer}>
-        <View style={styles.timeColumn}>
-          <TouchableOpacity onPress={() => setSelectedHour(9)}>
-            <Text style={styles.timeOption}>9</Text>
-          </TouchableOpacity>
-          <View style={styles.selectedTimeRow}>
-            <Text style={styles.selectedTime}>10</Text>
-          </View>
-          <TouchableOpacity onPress={() => setSelectedHour(11)}>
-            <Text style={styles.timeOption}>11</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.timeSeparator}>:</Text>
-
-        <View style={styles.timeColumn}>
-          <TouchableOpacity onPress={() => setSelectedMinute(14)}>
-            <Text style={styles.timeOption}>14</Text>
-          </TouchableOpacity>
-          <View style={styles.selectedTimeRow}>
-            <Text style={styles.selectedTime}>15</Text>
-          </View>
-          <TouchableOpacity onPress={() => setSelectedMinute(16)}>
-            <Text style={styles.timeOption}>16</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.timeColumn}>
-          <TouchableOpacity onPress={() => setSelectedPeriod('PM')}>
-            <Text style={styles.timeOption}>PM</Text>
-          </TouchableOpacity>
-          <View style={styles.selectedTimeRow}>
-            <Text style={styles.selectedTime}>AM</Text>
-          </View>
-          <TouchableOpacity>
-            <Text style={styles.timeOption}></Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
+  const markedDates = selectedDate
+    ? {
+        [selectedDate]: {
+          selected: true,
+          selectedColor: '#D9DFF7',
+          selectedTextColor: '#000000',
+        },
+      }
+    : {};
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="close" size={28} color="#000000" />
+            <MaterialIcons name="close" size={28} color="#2C3E50" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Schedule the Walk</Text>
           <View style={{ width: 28 }} />
         </View>
 
-        {/* Calendar */}
-        {renderCalendar()}
-
-        {/* Time Picker */}
+        {/* Calendar Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Time</Text>
-          {renderTimePicker()}
+          <Text style={styles.sectionTitle}>Select Date</Text>
+          <View style={styles.calendarContainer}>
+            <Calendar
+              current={new Date().toISOString().split('T')[0]}
+              minDate={new Date().toISOString().split('T')[0]}
+              onDayPress={(day) => {
+                setSelectedDate(day.dateString);
+              }}
+              markedDates={markedDates}
+              theme={{
+                backgroundColor: '#FFFFFF',
+                calendarBackground: '#FFFFFF',
+                textSectionTitleColor: '#8E8E93',
+                selectedDayBackgroundColor: '#D9DFF7',
+                selectedDayTextColor: '#000000',
+                todayTextColor: '#6C63FF',
+                dayTextColor: '#2C3E50',
+                textDisabledColor: '#D1D1D6',
+                dotColor: '#D9DFF7',
+                selectedDotColor: '#000000',
+                arrowColor: '#000000',
+                monthTextColor: '#2C3E50',
+                indicatorColor: '#D9DFF7',
+                textDayFontWeight: '500',
+                textMonthFontWeight: '700',
+                textDayHeaderFontWeight: '600',
+                textDayFontSize: 15,
+                textMonthFontSize: 18,
+                textDayHeaderFontSize: 13,
+              }}
+              style={styles.calendar}
+            />
+          </View>
+          {selectedDate && (
+            <Text style={styles.selectedDateText}>
+              Selected: {new Date(selectedDate).toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </Text>
+          )}
         </View>
 
-        {/* Reminder */}
+        {/* Time Picker Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Select Time</Text>
+          <View style={styles.timePickerContainer}>
+            <View style={styles.timePickerWrapper}>
+              {/* Hour Picker */}
+              <View style={styles.pickerColumn}>
+                <Text style={styles.pickerLabel}>Hour</Text>
+                {renderScrollPicker(hours, selectedHour, hourScrollRef, handleHourScroll, 'hour')}
+              </View>
+
+              <Text style={styles.timeSeparator}>:</Text>
+
+              {/* Minute Picker */}
+              <View style={styles.pickerColumn}>
+                <Text style={styles.pickerLabel}>Minute</Text>
+                {renderScrollPicker(minutes, selectedMinute, minuteScrollRef, handleMinuteScroll, 'minute')}
+              </View>
+
+              {/* AM/PM Toggle */}
+              <View style={styles.pickerColumn}>
+                <Text style={styles.pickerLabel}>Period</Text>
+                <View style={styles.periodToggle}>
+                  <TouchableOpacity
+                    style={[
+                      styles.periodButton,
+                      selectedPeriod === 'AM' && styles.periodButtonActive,
+                    ]}
+                    onPress={() => setSelectedPeriod('AM')}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.periodText,
+                        selectedPeriod === 'AM' && styles.periodTextActive,
+                      ]}
+                    >
+                      AM
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.periodButton,
+                      selectedPeriod === 'PM' && styles.periodButtonActive,
+                    ]}
+                    onPress={() => setSelectedPeriod('PM')}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.periodText,
+                        selectedPeriod === 'PM' && styles.periodTextActive,
+                      ]}
+                    >
+                      PM
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            {/* Selected Time Display */}
+            <View style={styles.selectedTimeDisplay}>
+              <MaterialIcons name="access-time" size={24} color="#6C63FF" />
+              <Text style={styles.selectedTimeText}>
+                {selectedHour.toString().padStart(2, '0')}:{selectedMinute.toString().padStart(2, '0')} {selectedPeriod}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Reminder Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Reminder</Text>
           <View style={styles.optionsRow}>
-            {['None', '5 minutes before', '15 minutes before', '30 minutes before'].map((option) => (
+            {reminderOptions.map((option) => (
               <TouchableOpacity
                 key={option}
                 style={[
                   styles.optionChip,
-                  selectedReminder === option && styles.selectedChip,
+                  styles.reminderChip,
+                  selectedReminder === option && styles.reminderChipSelected,
                 ]}
                 onPress={() => setSelectedReminder(option)}
+                activeOpacity={0.7}
               >
-                <Text style={[
-                  styles.optionText,
-                  selectedReminder === option && styles.selectedOptionText,
-                ]}>
+                <Text
+                  style={[
+                    styles.optionText,
+                    styles.reminderText,
+                    selectedReminder === option && styles.reminderTextSelected,
+                  ]}
+                >
                   {option}
                 </Text>
               </TouchableOpacity>
@@ -167,23 +305,28 @@ const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigat
           </View>
         </View>
 
-        {/* Preference */}
+        {/* Preference Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Preference</Text>
           <View style={styles.optionsRow}>
-            {['Solo', 'Group', 'Pet'].map((option) => (
+            {preferenceOptions.map((option) => (
               <TouchableOpacity
                 key={option}
                 style={[
                   styles.optionChip,
-                  selectedPreference === option && styles.selectedChip,
+                  styles.preferenceChip,
+                  selectedPreference === option && styles.preferenceChipSelected,
                 ]}
                 onPress={() => setSelectedPreference(option)}
+                activeOpacity={0.7}
               >
-                <Text style={[
-                  styles.optionText,
-                  selectedPreference === option && styles.selectedOptionText,
-                ]}>
+                <Text
+                  style={[
+                    styles.optionText,
+                    styles.preferenceText,
+                    selectedPreference === option && styles.preferenceTextSelected,
+                  ]}
+                >
                   {option}
                 </Text>
               </TouchableOpacity>
@@ -191,23 +334,28 @@ const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigat
           </View>
         </View>
 
-        {/* Recurrence */}
+        {/* Recurrence Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recurrence</Text>
           <View style={styles.optionsRow}>
-            {['None', 'Daily', 'Weekly'].map((option) => (
+            {recurrenceOptions.map((option) => (
               <TouchableOpacity
                 key={option}
                 style={[
                   styles.optionChip,
-                  selectedRecurrence === option && styles.selectedChip,
+                  styles.recurrenceChip,
+                  selectedRecurrence === option && styles.recurrenceChipSelected,
                 ]}
                 onPress={() => setSelectedRecurrence(option)}
+                activeOpacity={0.7}
               >
-                <Text style={[
-                  styles.optionText,
-                  selectedRecurrence === option && styles.selectedOptionText,
-                ]}>
+                <Text
+                  style={[
+                    styles.optionText,
+                    styles.recurrenceText,
+                    selectedRecurrence === option && styles.recurrenceTextSelected,
+                  ]}
+                >
                   {option}
                 </Text>
               </TouchableOpacity>
@@ -216,9 +364,10 @@ const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigat
         </View>
 
         {/* Choose Walker Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.chooseButton}
-          onPress={() => navigation.navigate('ChooseWalker')}
+          onPress={handleChooseWalker}
+          activeOpacity={0.8}
         >
           <Text style={styles.chooseButtonText}>Choose a Walker</Text>
         </TouchableOpacity>
@@ -247,108 +396,161 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  calendarContainer: {
-    backgroundColor: '#F7EDD9',
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 25,
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  monthText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000000',
-  },
-  daysHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 15,
-  },
-  dayHeaderText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#000000',
-    width: 40,
-    textAlign: 'center',
-  },
-  datesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  emptyDay: {
-    width: '14.28%',
-    aspectRatio: 1,
-  },
-  dateCell: {
-    width: '14.28%',
-    aspectRatio: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  selectedDate: {
-    backgroundColor: '#000000',
-  },
-  dateText: {
-    fontSize: 14,
-    color: '#000000',
-  },
-  selectedDateText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#2C3E50',
+    letterSpacing: 0.5,
   },
   section: {
     marginBottom: 25,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#000000',
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#2C3E50',
     marginBottom: 15,
+    letterSpacing: 0.3,
+  },
+  calendarContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+    paddingBottom: 15,
+  },
+  calendar: {
+    borderRadius: 20,
+  },
+  selectedDateText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#6C63FF',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   timePickerContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  timePickerWrapper: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginBottom: 20,
+  },
+  pickerColumn: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  pickerLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8E8E93',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  scrollPickerContainer: {
+    height: 150,
+    width: '90%',
+    position: 'relative',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  scrollPickerContent: {
+    paddingVertical: 50,
+    alignItems: 'center',
+  },
+  wheelItem: {
+    height: ITEM_HEIGHT,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 15,
-    paddingVertical: 20,
+    width: '100%',
   },
-  timeColumn: {
-    alignItems: 'center',
-    marginHorizontal: 15,
-  },
-  timeOption: {
+  wheelItemText: {
     fontSize: 18,
-    color: '#999999',
-    paddingVertical: 8,
+    color: '#B0B0B0',
+    fontWeight: '500',
   },
-  selectedTimeRow: {
+  wheelItemTextSelected: {
+    fontSize: 28,
+    color: '#2C3E50',
+    fontWeight: '700',
+  },
+  selectionIndicator: {
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    right: 0,
+    height: ITEM_HEIGHT,
+    marginTop: -ITEM_HEIGHT / 2,
     backgroundColor: '#D9DFF7',
-    borderRadius: 10,
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: '#D9DFF7',
+  },
+  timeSeparator: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#000000',
+    marginHorizontal: 5,
+    marginTop: 30,
+  },
+  periodToggle: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  periodButton: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    marginVertical: 8,
+    minWidth: 60,
+    alignItems: 'center',
   },
-  selectedTime: {
-    fontSize: 20,
+  periodButtonActive: {
+    backgroundColor: '#D9DFF7',
+    shadowColor: '#D9DFF7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  periodText: {
+    fontSize: 16,
     fontWeight: '600',
     color: '#000000',
   },
-  timeSeparator: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  periodTextActive: {
     color: '#000000',
-    marginHorizontal: 10,
+    fontWeight: '700',
+  },
+  selectedTimeDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  selectedTimeText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#6C63FF',
+    letterSpacing: 1,
   },
   optionsRow: {
     flexDirection: 'row',
@@ -356,35 +558,97 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   optionChip: {
-    backgroundColor: '#E8F6E9',
     borderRadius: 20,
     paddingVertical: 12,
     paddingHorizontal: 20,
     marginRight: 10,
     marginBottom: 10,
-  },
-  selectedChip: {
-    backgroundColor: '#4CAF50',
+    borderWidth: 2,
   },
   optionText: {
     fontSize: 14,
-    color: '#000000',
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  selectedOptionText: {
+  // Reminder styles
+  reminderChip: {
+    backgroundColor: '#E8F6E9',
+    borderColor: '#E8F6E9',
+  },
+  reminderChipSelected: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  reminderText: {
+    color: '#000000',
+  },
+  reminderTextSelected: {
     color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  // Preference styles
+  preferenceChip: {
+    backgroundColor: '#E8F6E9',
+    borderColor: '#E8F6E9',
+  },
+  preferenceChipSelected: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  preferenceText: {
+    color: '#000000',
+  },
+  preferenceTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  // Recurrence styles
+  recurrenceChip: {
+    backgroundColor: '#E8F6E9',
+    borderColor: '#E8F6E9',
+  },
+  recurrenceChipSelected: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  recurrenceText: {
+    color: '#000000',
+  },
+  recurrenceTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   chooseButton: {
     backgroundColor: '#000000',
-    borderRadius: 30,
+    borderRadius: 25,
     paddingVertical: 18,
     alignItems: 'center',
     marginTop: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
   },
   chooseButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });
 

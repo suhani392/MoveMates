@@ -13,6 +13,9 @@ import AboutScreen from '../screens/AboutScreen';
 import ContactUsScreen from '../screens/ContactUsScreen';
 import ScheduleDateTimeScreen from '../screens/ScheduleDateTimeScreen';
 import ChooseWalkerScreen from '../screens/ChooseWalkerScreen';
+import WalkerDetailsScreen from '../screens/WalkerDetailsScreen';
+import WalkerRequestedScreen from '../screens/WalkerRequestedScreen';
+import WalkerUpdatesScreen from '../screens/WalkerUpdatesScreen';
 
 const Stack = createStackNavigator();
 
@@ -61,6 +64,9 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="ContactUs" component={ContactUsScreen} />
       <Stack.Screen name="ScheduleDateTime" component={ScheduleDateTimeScreen} />
       <Stack.Screen name="ChooseWalker" component={ChooseWalkerScreen} />
+      <Stack.Screen name="WalkerDetails" component={WalkerDetailsScreen} />
+      <Stack.Screen name="WalkerRequested" component={WalkerRequestedScreen} />
+      <Stack.Screen name="WalkerUpdates" component={WalkerUpdatesScreen} />
     </Stack.Navigator>
   );
 };
