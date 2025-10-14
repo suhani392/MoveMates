@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, SafeAreaView, Modal, Animated, Easing } from 'react-native';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, SafeAreaView, Modal } from 'react-native';
+import { collection, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { MaterialIcons } from '@expo/vector-icons';
-import { db } from '../firebaseConfig';
+import { db, auth } from '../firebaseConfig';
 import { authService } from '../services/authService';
 
 interface User {
@@ -18,11 +18,27 @@ const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [slideAnim] = useState(new Animated.Value(-300));
+  const [userName, setUserName] = useState('Admin');
 
   useEffect(() => {
     fetchUsers();
+    fetchUserData();
   }, []);
+
+  const fetchUserData = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setUserName(userData.name || 'Admin');
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -55,21 +71,10 @@ const AdminDashboard: React.FC = () => {
 
   const openDrawer = () => {
     setMenuVisible(true);
-    Animated.timing(slideAnim, {
-      toValue: 0,
-      duration: 300,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: true,
-    }).start();
   };
 
   const closeDrawer = () => {
-    Animated.timing(slideAnim, {
-      toValue: -300,
-      duration: 250,
-      easing: Easing.in(Easing.ease),
-      useNativeDriver: true,
-    }).start(() => setMenuVisible(false));
+    setMenuVisible(false);
   };
 
   if (loading) {
@@ -82,13 +87,17 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with Menu Button */}
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.menuButton} onPress={openDrawer}>
-          <MaterialIcons name="menu" size={24} color="#000000" />
+        <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>
+          <MaterialIcons name="menu" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Admin Dashboard</Text>
-        <View style={styles.headerSpacer} />
+        <TouchableOpacity style={styles.headerButton} onPress={() => {
+          // Navigate to notifications screen
+          // navigation.navigate('Notifications');
+        }}>
+          <MaterialIcons name="notifications" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content}>
@@ -96,7 +105,7 @@ const AdminDashboard: React.FC = () => {
         
         {users.map((user) => (
           <View key={user.id} style={styles.userCard}>
-            <Text style={styles.userName}>{user.name}</Text>
+            <Text style={styles.userCardName}>{user.name}</Text>
             <Text style={styles.userEmail}>{user.email}</Text>
             <Text style={styles.userRole}>Role: {user.role}</Text>
             <Text style={styles.userStatus}>
@@ -130,49 +139,74 @@ const AdminDashboard: React.FC = () => {
         ))}
       </ScrollView>
 
-      {/* Navigation Drawer */}
+      {/* Drawer */}
       <Modal
         visible={menuVisible}
-        animationType="none"
+        animationType="fade"
         transparent
         onRequestClose={closeDrawer}
       >
-        <TouchableOpacity
-          style={styles.overlay}
-          activeOpacity={1}
-          onPressOut={closeDrawer}
-        >
-          <Animated.View
-            style={[
-              styles.drawer,
-              { transform: [{ translateX: slideAnim }] },
-            ]}
-          >
+        <View style={styles.overlay}>
+          <View style={styles.drawer}>
+            {/* Profile Header */}
             <TouchableOpacity 
-              style={[styles.drawerItem, styles.profileHeader]} 
+              style={styles.profileHeader} 
               onPress={() => {
                 closeDrawer();
                 // Could navigate to admin profile if needed
               }}
             >
-              <Text style={styles.drawerProfile}>👤  Admin Profile</Text>
+              <View style={styles.profileCircle}>
+                <MaterialIcons name="person" size={40} color="#666" />
+              </View>
+              <Text style={styles.userName}>{userName}</Text>
             </TouchableOpacity>
 
+            {/* Menu Items */}
             <TouchableOpacity 
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
-                fetchUsers(); // Refresh users
               }}
             >
-              <Text style={styles.drawerText}>Refresh Users</Text>
+              <Text style={styles.drawerText}>Home</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
-                // Could navigate to settings
+                // navigation.navigate('Notifications');
+              }}
+            >
+              <Text style={styles.drawerText}>Notifications</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                // navigation.navigate('ContactUs');
+              }}
+            >
+              <Text style={styles.drawerText}>Contact Us</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                // navigation.navigate('HelpPolicy');
+              }}
+            >
+              <Text style={styles.drawerText}>Help & Policy</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                // navigation.navigate('Settings');
               }}
             >
               <Text style={styles.drawerText}>Settings</Text>
@@ -182,23 +216,24 @@ const AdminDashboard: React.FC = () => {
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
-                // Could navigate to help
+                // navigation.navigate('About');
               }}
             >
-              <Text style={styles.drawerText}>Help & Privacy</Text>
+              <Text style={styles.drawerText}>About</Text>
             </TouchableOpacity>
 
+            {/* Logout */}
             <TouchableOpacity 
-              style={[styles.drawerItem, styles.signOutItem]} 
+              style={[styles.drawerItem, styles.logoutItem]} 
               onPress={() => { 
                 closeDrawer();
                 handleSignOut();
               }}
             >
-              <Text style={styles.signOutText}>Sign Out</Text>
+              <Text style={styles.logoutText}>Logout</Text>
             </TouchableOpacity>
-          </Animated.View>
-        </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -215,24 +250,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    paddingTop: 35,
+    paddingBottom: 10,
+    zIndex: 10,
   },
-  menuButton: {
-    padding: 5,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  headerSpacer: {
-    width: 34, // Same width as menu button to center title
+  headerButton: {
+    width: 45,
+    height: 45,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
@@ -251,7 +282,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 10,
   },
-  userName: {
+  userCardName: {
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 5,
@@ -294,44 +325,51 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '600',
   },
-  // Drawer styles
+  // Drawer
   overlay: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   drawer: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: '50%',
-    height: '100%',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingTop: 80,
-    paddingHorizontal: 25,
+    flex: 1,
+    paddingTop: 60,
+    paddingHorizontal: 30,
   },
-  drawerProfile: {
-    fontSize: 20,
-    color: '#FFF',
-    fontWeight: '700',
-    marginBottom: 30,
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 50,
+  },
+  profileCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  userName: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   drawerItem: {
-    marginBottom: 25,
+    marginBottom: 35,
   },
   drawerText: {
-    fontSize: 18,
-    color: '#FFF',
+    fontSize: 16,
+    color: '#FFFFFF',
     fontWeight: '500',
   },
-  signOutItem: {
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.3)',
+  logoutItem: {
+    position: 'absolute',
+    bottom: 50,
+    left: 30,
   },
-  signOutText: {
-    fontSize: 18,
-    color: '#FF6B6B',
+  logoutText: {
+    fontSize: 16,
+    color: '#FF0000',
     fontWeight: '600',
   },
 });

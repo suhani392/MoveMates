@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Alert,
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -50,6 +51,21 @@ const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigat
   const recurrenceOptions = ['None', 'Daily', 'Weekly'];
 
   const handleChooseWalker = () => {
+    // Validate required fields
+    if (!selectedDate) {
+      Alert.alert('Missing Information', 'Please select a date for your walk.');
+      return;
+    }
+    
+    // Note: Time is always set with default values (10:00 AM), so no need to validate
+    // But we can add a check if needed
+    
+    // Validate preference is selected (it has a default value, but we check anyway)
+    if (!selectedPreference) {
+      Alert.alert('Missing Information', 'Please select a preference.');
+      return;
+    }
+    
     const scheduleData = {
       date: selectedDate,
       time: `${selectedHour.toString().padStart(2, '0')}:${selectedMinute.toString().padStart(2, '0')} ${selectedPeriod}`,

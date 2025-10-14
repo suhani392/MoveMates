@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Switch, Modal } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { authService } from '../services/authService';
+import { auth, db } from '../firebaseConfig';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 type WalkerHomeScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -19,6 +22,65 @@ interface WalkRequest {
 
 const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
   const [isAvailable, setIsAvailable] = useState(true);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [userName, setUserName] = useState('User Name');
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setUserName(userData.name || 'User Name');
+            // Load the current availability status from Firestore
+            setIsAvailable(userData.available !== undefined ? userData.available : true);
+            
+            // Set user as online when they open the walker home screen
+            await updateDoc(doc(db, 'users', user.uid), {
+              isOnline: true,
+              currentWalkStatus: 'idle',
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+        }
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
+  const handleSignOut = async () => {
+    await authService.signOut();
+  };
+
+  const openDrawer = () => {
+    setMenuVisible(true);
+  };
+
+  const closeDrawer = () => {
+    setMenuVisible(false);
+  };
+
+  const handleAvailabilityToggle = async (value: boolean) => {
+    setIsAvailable(value);
+    
+    // Update availability in Firestore
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        await updateDoc(doc(db, 'users', user.uid), {
+          available: value,
+          isOnline: true, // Ensure they're marked as online
+        });
+        console.log('Availability updated to:', value);
+      } catch (error) {
+        console.error('Error updating availability:', error);
+      }
+    }
+  };
 
   // Mock data for incoming requests
   const incomingRequests: WalkRequest[] = [
@@ -52,15 +114,17 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
   ];
 
   return (
-    <View style={styles.container}>
-      {/* Dark Header */}
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="menu" size={28} color="#FFFFFF" />
+        <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>
+          <MaterialIcons name="menu" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Walker Home</Text>
-        <TouchableOpacity>
-          <Ionicons name="notifications-outline" size={28} color="#FFFFFF" />
+        <TouchableOpacity style={styles.headerButton} onPress={() => {
+          // Navigate to notifications screen
+          // navigation.navigate('Notifications');
+        }}>
+          <MaterialIcons name="notifications" size={28} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
@@ -79,7 +143,7 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
             </View>
             <Switch
               value={isAvailable}
-              onValueChange={setIsAvailable}
+              onValueChange={handleAvailabilityToggle}
               trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
               thumbColor={isAvailable ? '#22C55E' : '#F3F4F6'}
             />
@@ -128,28 +192,127 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
           <Ionicons name="walk" size={32} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
-    </View>
+
+      {/* Drawer */}
+      <Modal
+        visible={menuVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={closeDrawer}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.drawer}>
+            {/* Profile Header */}
+            <TouchableOpacity 
+              style={styles.profileHeader} 
+              onPress={() => {
+                closeDrawer();
+                navigation.navigate('Profile');
+              }}
+            >
+              <View style={styles.profileCircle}>
+                <MaterialIcons name="person" size={40} color="#666" />
+              </View>
+              <Text style={styles.userName}>{userName}</Text>
+            </TouchableOpacity>
+
+            {/* Menu Items */}
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+              }}
+            >
+              <Text style={styles.drawerText}>Home</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                // navigation.navigate('Notifications');
+              }}
+            >
+              <Text style={styles.drawerText}>Notifications</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('ContactUs');
+              }}
+            >
+              <Text style={styles.drawerText}>Contact Us</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('HelpPolicy');
+              }}
+            >
+              <Text style={styles.drawerText}>Help & Policy</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('Settings');
+              }}
+            >
+              <Text style={styles.drawerText}>Settings</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('About');
+              }}
+            >
+              <Text style={styles.drawerText}>About</Text>
+            </TouchableOpacity>
+
+            {/* Logout */}
+            <TouchableOpacity 
+              style={[styles.drawerItem, styles.logoutItem]} 
+              onPress={() => { 
+                closeDrawer();
+                handleSignOut();
+              }}
+            >
+              <Text style={styles.logoutText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2D2D2D',
+    backgroundColor: '#FFFFFF',
   },
   header: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 20,
-    paddingTop: 50,
-    backgroundColor: '#2D2D2D',
+    paddingTop: 35,
+    paddingBottom: 10,
+    zIndex: 10,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#9CA3AF',
+  headerButton: {
+    width: 45,
+    height: 45,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
@@ -288,6 +451,54 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 8,
+  },
+
+  // Drawer
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  },
+  drawer: {
+    flex: 1,
+    paddingTop: 60,
+    paddingHorizontal: 30,
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 50,
+  },
+  profileCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  userName: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  drawerItem: {
+    marginBottom: 35,
+  },
+  drawerText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '500',
+  },
+  logoutItem: {
+    position: 'absolute',
+    bottom: 50,
+    left: 30,
+  },
+  logoutText: {
+    fontSize: 16,
+    color: '#FF0000',
+    fontWeight: '600',
   },
 });
 

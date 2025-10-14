@@ -9,6 +9,7 @@ import {
   Platform,
   SafeAreaView,
   Modal,
+  Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -56,6 +57,24 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
 
   const closeDrawer = () => {
     setMenuVisible(false);
+  };
+
+  const handleBookSlot = () => {
+    // Validate pickup and destination
+    if (!pickup.trim()) {
+      Alert.alert('Missing Information', 'Please enter a pickup location.');
+      return;
+    }
+    if (!destination.trim()) {
+      Alert.alert('Missing Information', 'Please enter a destination.');
+      return;
+    }
+    
+    // Navigate to schedule screen with location data
+    navigation.navigate('ScheduleDateTime', {
+      pickup: pickup.trim(),
+      destination: destination.trim(),
+    });
   };
 
   return (
@@ -122,7 +141,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
           {/* Book Button */}
           <TouchableOpacity
             style={styles.bookButton}
-            onPress={() => navigation.navigate('ScheduleDateTime')}
+            onPress={handleBookSlot}
           >
             <Text style={styles.bookButtonText}>Book a Slot</Text>
           </TouchableOpacity>
