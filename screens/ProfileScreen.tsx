@@ -1,115 +1,179 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, SafeAreaView, Image } from 'react-native';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, RefreshControl } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { auth, db } from '../firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
 
 type ProfileScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [userData, setUserData] = useState({
-    name: 'Suhani Vaibhav Badhe',
-    role: 'Wanderer',
-    about: 'I love exploring new places and making new friends.\nI am always up for a walk, at any time..!!',
-    languages: 'Marathi, Hindi, English, German',
-    pace: 'Moderate',
-    hobbies: 'Playing instruments, Singing, Dancing, Drawing & Crafting, Planting, Listening to music, Coding & Development, Foodie',
-  });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userData, setUserData] = useState<any>(null);
 
-  const handleUpdate = () => {
-    setIsEditing(false);
-    console.log('Profile Updated:', userData);
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  // Add focus listener to refresh data when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchUserData();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  const fetchUserData = async (isRefreshing = false) => {
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setUserData(data);
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      } finally {
+        if (isRefreshing) {
+          setRefreshing(false);
+        } else {
+          setLoading(false);
+        }
+      }
+    } else {
+      if (isRefreshing) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
+    }
   };
 
-  const InfoSection = ({
-    label,
-    value,
-    field,
-    multiline = false,
-  }: {
-    label: string;
-    value: string;
-    field: string;
-    multiline?: boolean;
-  }) => (
-    <View style={styles.infoSection}>
-      <Text style={styles.label}>{label}</Text>
-      {isEditing ? (
-        <TextInput
-          style={[styles.input, multiline && styles.multilineInput]}
-          value={value}
-          onChangeText={(text) => setUserData({ ...userData, [field]: text })}
-          placeholder={`Enter your ${label.toLowerCase()}`}
-          multiline={multiline}
-          numberOfLines={multiline ? 4 : 1}
-        />
-      ) : (
-        <Text style={styles.valueText}>{value}</Text>
-      )}
-    </View>
-  );
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchUserData(true);
+  };
+
+  const getRoleDisplayName = (role: string) => {
+    if (role === 'wanderer') return 'Wanderer';
+    if (role === 'walker') return 'Walker';
+    if (role === 'admin') return 'Admin';
+    return role;
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#000000" />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!userData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>Unable to load profile</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile</Text>
-        <View style={styles.balancePlaceholder} />
-      </View>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#000000"
+            colors={['#000000']}
+          />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}>
+            <MaterialIcons name="arrow-back" size={28} color="#000" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Profile</Text>
+        </View>
 
-      <ScrollView style={styles.scrollView}>
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
-              <Ionicons name="person" size={64} color="#666" />
+              <MaterialIcons name="person" size={80} color="#FFFFFF" />
             </View>
-            {isEditing && (
-              <TouchableOpacity style={styles.editPhotoButton}>
-                <Ionicons name="pencil" size={16} color="#FFF" />
-              </TouchableOpacity>
-            )}
           </View>
 
-          <Text style={styles.userName}>{userData.name}</Text>
-          <Text style={styles.userRole}>{userData.role}</Text>
-          <View style={styles.verifiedContainer}>
-            <Ionicons name="checkmark-circle" size={20} color="#3B82F6" />
-            <Text style={styles.verifiedText}>verified</Text>
+          <View style={styles.userInfoContainer}>
+            <Text style={styles.userName}>{userData.name || 'User Name'}</Text>
+            <Text style={styles.userRole}>{getRoleDisplayName(userData.role)}</Text>
+            <View style={styles.verifiedContainer}>
+              <MaterialIcons name="verified" size={18} color="#3B82F6" />
+              <Text style={styles.verifiedText}>verified</Text>
+            </View>
           </View>
         </View>
 
         {/* Information Sections */}
         <View style={styles.infoContainer}>
-          <InfoSection label="About" value={userData.about} field="about" multiline />
-          <InfoSection label="Languages" value={userData.languages} field="languages" />
-          <InfoSection label="Pace" value={userData.pace} field="pace" />
-          <InfoSection label="Hobbies" value={userData.hobbies} field="hobbies" multiline />
+          {/* About Section */}
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>About</Text>
+            <Text style={styles.sectionContent}>
+              {userData.about || 'No information provided.'}
+            </Text>
+          </View>
+
+          {/* Languages Section */}
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>Languages</Text>
+            <Text style={styles.sectionContent}>
+              {userData.languages || 'Not specified'}
+            </Text>
+          </View>
+
+          {/* Pace Section - Only for Wanderers and Walkers */}
+          {(userData.role === 'wanderer' || userData.role === 'walker') && (
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionTitle}>Pace</Text>
+              <Text style={styles.sectionContent}>
+                {userData.walkingPace || userData.pace || 'Not specified'}
+              </Text>
+            </View>
+          )}
+
+          {/* Hobbies Section */}
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>Hobbies</Text>
+            <Text style={styles.sectionContent}>
+              {userData.hobbies || 'Not specified'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Edit Prompt */}
+        <View style={styles.editPromptContainer}>
+          <Text style={styles.editPromptText}>Need to edit your information?</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
+            <Text style={styles.editButtonText}>Edit my information</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
-
-      {/* Footer with conditional buttons */}
-      <View style={styles.footer}>
-        {isEditing ? (
-          <TouchableOpacity style={styles.updateButton} onPress={handleUpdate}>
-            <Text style={styles.updateButtonText}>Update</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.editPromptContainer}>
-            <Text style={styles.editPromptText}>Need to edit your information?</Text>
-            <TouchableOpacity onPress={() => setIsEditing(true)}>
-              <Text style={styles.editButtonText}>Edit my information</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
     </SafeAreaView>
   );
 };
@@ -117,144 +181,115 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF',
+    backgroundColor: '#FFFFFF',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
-  backButton: {
-    padding: 8,
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  balancePlaceholder: {
-    width: 44,
-    height: 44,
+  errorText: {
+    fontSize: 16,
+    color: '#666666',
   },
   scrollView: {
     flex: 1,
   },
-  profileHeader: {
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#FFF',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  backButton: {
+    marginRight: 16,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
   },
   avatarContainer: {
-    position: 'relative',
-    marginBottom: 16,
+    marginRight: 20,
   },
   avatar: {
-    width: 128,
-    height: 128,
-    borderRadius: 64,
-    backgroundColor: '#F3F4F6',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
-  editPhotoButton: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    backgroundColor: '#000',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF',
+  userInfoContainer: {
+    flex: 1,
   },
   userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginTop: 8,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 4,
   },
   userRole: {
     fontSize: 16,
-    color: '#6B7280',
-    marginTop: 4,
+    color: '#666666',
+    marginBottom: 8,
   },
   verifiedContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
   },
   verifiedText: {
     color: '#3B82F6',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     marginLeft: 4,
   },
   infoContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
   },
   infoSection: {
-    marginBottom: 24,
+    marginBottom: 28,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#111827',
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#000000',
     marginBottom: 8,
   },
-  input: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#111827',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  multilineInput: {
-    textAlignVertical: 'top',
-    minHeight: 100,
-  },
-  valueText: {
-    fontSize: 16,
-    color: '#4B5563',
-    lineHeight: 24,
-  },
-  footer: {
-    padding: 24,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    backgroundColor: '#FFF',
-  },
-  updateButton: {
-    backgroundColor: '#000',
-    borderRadius: 28,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  updateButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
+  sectionContent: {
+    fontSize: 15,
+    color: '#333333',
+    lineHeight: 22,
   },
   editPromptContainer: {
-    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
   },
   editPromptText: {
-    color: '#4B5563',
-    fontSize: 14,
-    marginBottom: 4,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 8,
   },
   editButtonText: {
     color: '#3B82F6',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
 });

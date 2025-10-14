@@ -8,6 +8,7 @@ import AdminDashboard from '../screens/AdminDashboard';
 import PendingApprovalScreen from '../screens/PendingApprovalScreen';
 import HelpPolicyScreen from '../screens/HelpPolicyScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import AboutScreen from '../screens/AboutScreen';
 import ContactUsScreen from '../screens/ContactUsScreen';
@@ -59,6 +60,7 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="PendingApproval" component={PendingApprovalScreen} />
       <Stack.Screen name="HelpPolicy" component={HelpPolicyScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="About" component={AboutScreen} />
       <Stack.Screen name="ContactUs" component={ContactUsScreen} />

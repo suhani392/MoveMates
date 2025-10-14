@@ -10,15 +10,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RouteProp } from '@react-navigation/native';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-
-type WalkerDetailsScreenProps = {
-  navigation: StackNavigationProp<any>;
-  route: RouteProp<{ params: { walker: any } }, 'params'>;
-};
 
 interface Review {
   id: string;
@@ -29,7 +22,7 @@ interface Review {
   createdAt: any;
 }
 
-const WalkerDetailsScreen: React.FC<WalkerDetailsScreenProps> = ({ navigation, route }) => {
+const WalkerDetailsScreen = ({ navigation, route }: { navigation: any; route: any }) => {
   const walker = route.params?.walker;
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
