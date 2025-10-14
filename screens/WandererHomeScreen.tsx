@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   Modal,
   Alert,
+  Image,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -98,7 +99,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
         onPress={() => navigation.navigate('WalkerUpdates')}
         activeOpacity={0.8}
       >
-        <MaterialIcons name="directions-walk" size={24} color="#FFFFFF" />
+        <Image source={require('../assets/walk.png')} style={{ width: 20, height: 20, tintColor: '#FFFFFF' }} />
       </TouchableOpacity>
 
       {/* Bottom Card */}

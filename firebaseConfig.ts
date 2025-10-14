@@ -1,7 +1,9 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { initializeAuth, getAuth, Auth } from 'firebase/auth';
+// @ts-ignore - getReactNativePersistence exists but may not be in type definitions
+import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getDatabase, Database } from 'firebase/database';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyA2KUbTfecc0Av02F_9gLM7rVcdasPF8gM",
@@ -14,24 +16,14 @@ const firebaseConfig = {
   measurementId: "G-LFRX6B2TQF"
 };
 
-// Initialize Firebase only if it hasn't been initialized yet
-let app: FirebaseApp;
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApp();
-}
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 
-// Initialize Auth
-// For React Native with Firebase v10+, we use getAuth() directly
-// AsyncStorage persistence is handled automatically by the Firebase SDK
-let auth: Auth;
-try {
-  auth = getAuth(app);
-} catch (error) {
-  // If getAuth fails (app not initialized), initialize auth without custom persistence
-  auth = initializeAuth(app);
-}
+// Initialize Auth with AsyncStorage persistence for React Native
+// This ensures the user stays logged in across app restarts
+const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage)
+});
 
 export { auth };
 export const db: Firestore = getFirestore(app);

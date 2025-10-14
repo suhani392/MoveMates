@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Switch, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Switch, Modal, Image } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { authService } from '../services/authService';
@@ -130,37 +130,73 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Greeting */}
-        <Text style={styles.greeting}>Hello, User!</Text>
+        <Text style={styles.greeting}>Hello, {userName}!</Text>
 
         {/* Availability Toggle Card */}
         <View style={styles.availabilityCard}>
           <View style={styles.availabilityContent}>
+            <View style={styles.availabilityIconContainer}>
+              <Ionicons 
+                name={isAvailable ? "checkmark-circle" : "close-circle"} 
+                size={32} 
+                color={isAvailable ? "#22C55E" : "#EF4444"} 
+              />
+            </View>
             <View style={styles.availabilityTextContainer}>
               <Text style={styles.availabilityTitle}>Available for a walk?</Text>
               <Text style={styles.availabilitySubtitle}>
-                Let the wanderer's know if you are available for a walk at the moment
+                {isAvailable ? "You're ready to accept walks" : "You're currently unavailable"}
               </Text>
             </View>
-            <Switch
-              value={isAvailable}
-              onValueChange={handleAvailabilityToggle}
-              trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-              thumbColor={isAvailable ? '#22C55E' : '#F3F4F6'}
-            />
+            <TouchableOpacity 
+              style={[
+                styles.customToggle,
+                isAvailable ? styles.toggleActive : styles.toggleInactive
+              ]}
+              onPress={() => handleAvailabilityToggle(!isAvailable)}
+              activeOpacity={0.8}
+            >
+              <View style={[
+                styles.toggleThumb,
+                isAvailable ? styles.thumbActive : styles.thumbInactive
+              ]}>
+                <Ionicons 
+                  name={isAvailable ? "checkmark" : "close"} 
+                  size={16} 
+                  color="#FFFFFF" 
+                />
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
 
         {/* Stats Cards */}
         <View style={styles.statsRow}>
           <View style={[styles.statCard, styles.purpleCard]}>
-            <Ionicons name="walk" size={40} color="#000000" />
-            <Text style={styles.statNumber}>24</Text>
-            <Text style={styles.statLabel}>WALKS</Text>
+            <View style={styles.statIconContainer}>
+              <MaterialIcons name="directions-walk" size={28} color="#5B21B6" />
+            </View>
+            <View style={styles.statTextContainer}>
+              <Text style={styles.statNumber}>24</Text>
+              <Text style={styles.statLabel}>Total Walks</Text>
+            </View>
+            <View style={styles.statTrendBadge}>
+              <Ionicons name="trending-up" size={12} color="#22C55E" />
+              <Text style={styles.statTrendText}>+12%</Text>
+            </View>
           </View>
           <View style={[styles.statCard, styles.purpleCard]}>
-            <MaterialIcons name="account-balance-wallet" size={40} color="#000000" />
-            <Text style={styles.statNumber}>RS. 2780</Text>
-            <Text style={styles.statLabel}>Today's Earnings</Text>
+            <View style={styles.statIconContainer}>
+              <MaterialIcons name="account-balance-wallet" size={28} color="#5B21B6" />
+            </View>
+            <View style={styles.statTextContainer}>
+              <Text style={styles.statNumber}>₹2,780</Text>
+              <Text style={styles.statLabel}>Today's Earnings</Text>
+            </View>
+            <View style={styles.statTrendBadge}>
+              <Ionicons name="trending-up" size={12} color="#22C55E" />
+              <Text style={styles.statTrendText}>+8%</Text>
+            </View>
           </View>
         </View>
 
@@ -168,28 +204,41 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
         <Text style={styles.sectionTitle}>Incoming Requests</Text>
         
         {incomingRequests.map((request) => (
-          <View key={request.id} style={styles.requestCard}>
-            <View style={styles.requestAvatar}>
-              <View style={styles.ratingBadge}>
-                <Ionicons name="star" size={12} color="#FFA500" />
-                <Text style={styles.ratingText}>{request.rating}</Text>
+          <TouchableOpacity 
+            key={request.id} 
+            style={styles.requestCard}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('WandererDetails', { wanderer: request })}
+          >
+            <View style={styles.cardContent}>
+              {/* Profile Image with Rating Badge */}
+              <View style={styles.profileImageContainer}>
+                <View style={styles.profileImage}>
+                  <MaterialIcons name="person" size={60} color="#CCCCCC" />
+                </View>
+                {/* Rating Badge on Bottom Right */}
+                <View style={styles.ratingBadge}>
+                  <MaterialIcons name="star" size={14} color="#FFC107" />
+                  <Text style={styles.ratingBadgeText}>{request.rating}</Text>
+                </View>
+              </View>
+
+              {/* Wanderer Info */}
+              <View style={styles.requestDetails}>
+                <Text style={styles.requestName}>{request.name}</Text>
+                <Text style={styles.requestInfo}>Pickup: {request.pickup}</Text>
+                <Text style={styles.requestInfo}>Destination: {request.destination}</Text>
+                <Text style={styles.requestInfo}>Preference: {request.preference}</Text>
               </View>
             </View>
-            <View style={styles.requestDetails}>
-              <Text style={styles.requestName}>{request.name}</Text>
-              <Text style={styles.requestInfo}>Pace : {request.pace}</Text>
-              <Text style={styles.requestInfo}>Pickup : {request.pickup}</Text>
-              <Text style={styles.requestInfo}>Destination : {request.destination}</Text>
-              <Text style={styles.requestInfo}>Preference : {request.preference}</Text>
-            </View>
-          </View>
+          </TouchableOpacity>
         ))}
       </ScrollView>
 
       {/* Bottom Navigation Icon */}
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.bottomNavButton}>
-          <Ionicons name="walk" size={32} color="#FFFFFF" />
+          <Image source={require('../assets/walk.png')} style={{ width: 28, height: 28, tintColor: '#FFFFFF' }} />
         </TouchableOpacity>
       </View>
 
@@ -329,30 +378,81 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   availabilityCard: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: '#E8F6E9',
     borderRadius: 15,
     padding: 20,
     marginBottom: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   availabilityContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
+  },
+  availabilityIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   availabilityTextContainer: {
     flex: 1,
-    marginRight: 15,
   },
   availabilityTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#000000',
-    marginBottom: 5,
+    marginBottom: 4,
   },
   availabilitySubtitle: {
     fontSize: 12,
     color: '#6B7280',
-    lineHeight: 18,
+    lineHeight: 16,
+  },
+  customToggle: {
+    width: 60,
+    height: 32,
+    borderRadius: 16,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleActive: {
+    backgroundColor: '#22C55E',
+    alignItems: 'flex-end',
+  },
+  toggleInactive: {
+    backgroundColor: '#EF4444',
+    alignItems: 'flex-start',
+  },
+  toggleThumb: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  thumbActive: {
+    marginRight: 0,
+  },
+  thumbInactive: {
+    marginLeft: 0,
   },
   statsRow: {
     flexDirection: 'row',
@@ -363,24 +463,63 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     borderRadius: 15,
-    padding: 20,
-    alignItems: 'center',
+    padding: 18,
+    position: 'relative',
   },
   purpleCard: {
-    backgroundColor: '#DDD6FE',
+    backgroundColor: '#D9DFF7',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statTextContainer: {
+    alignItems: 'flex-start',
   },
   statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '800',
     color: '#000000',
-    marginTop: 10,
-    marginBottom: 5,
+    marginBottom: 2,
   },
   statLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#000000',
-    textAlign: 'center',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statTrendBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    gap: 2,
+  },
+  statTrendText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#22C55E',
   },
   sectionTitle: {
     fontSize: 18,
@@ -389,50 +528,70 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   requestCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FEF3C7',
-    borderRadius: 15,
-    padding: 15,
+    backgroundColor: '#F7EDD9',
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 15,
+    minHeight: 160,
+    position: 'relative',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  requestAvatar: {
-    width: 80,
-    height: 80,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    marginRight: 15,
-    justifyContent: 'flex-end',
-    alignItems: 'flex-start',
-    padding: 5,
-  },
-  ratingBadge: {
+  cardContent: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  profileImageContainer: {
+    marginRight: 15,
+    position: 'relative',
+  },
+  profileImage: {
+    width: 110,
+    height: 110,
+    borderRadius: 15,
     backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  ratingBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
-    gap: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  ratingText: {
-    fontSize: 11,
-    fontWeight: 'bold',
+  ratingBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
     color: '#000000',
+    marginLeft: 2,
   },
   requestDetails: {
     flex: 1,
-    justifyContent: 'center',
   },
   requestName: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#000000',
-    marginBottom: 5,
+    marginBottom: 6,
   },
   requestInfo: {
-    fontSize: 12,
-    color: '#4B5563',
-    marginBottom: 2,
+    fontSize: 14,
+    color: '#333333',
+    marginBottom: 4,
   },
   bottomNav: {
     position: 'absolute',
