@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 
 interface UserData {
@@ -10,6 +10,16 @@ interface UserData {
   role: 'wanderer' | 'walker' | 'admin';
   approved: boolean;
   createdAt: any;
+  // Optional profile fields used across the app
+  profileImage?: string;
+  image?: string;
+  updatedAt?: any;
+  about?: string;
+  languages?: string;
+  walkingPace?: string;
+  pace?: string;
+  hobbies?: string;
+  available?: boolean;
 }
 
 interface AuthContextType {
@@ -32,25 +42,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // User is signed in, fetch their data from Firestore
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            setUserData(userDoc.data() as UserData);
-          }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-        }
-      } else {
-        setUserData(null);
+    let unsubscribeUserDoc: (() => void) | undefined;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      // Clean up previous Firestore listener when auth user changes
+      if (unsubscribeUserDoc) {
+        unsubscribeUserDoc();
+        unsubscribeUserDoc = undefined;
       }
-      setUser(user);
-      setLoading(false);
+
+      if (currentUser) {
+        setUser(currentUser);
+
+        // Subscribe to real-time updates on the user's document
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        unsubscribeUserDoc = onSnapshot(
+          userDocRef,
+          (snapshot) => {
+            if (snapshot.exists()) {
+              setUserData(snapshot.data() as UserData);
+            } else {
+              setUserData(null);
+            }
+            setLoading(false);
+          },
+          (error) => {
+            console.error('Error listening to user data:', error);
+            setLoading(false);
+          }
+        );
+      } else {
+        setUser(null);
+        setUserData(null);
+        setLoading(false);
+      }
     });
 
-    return unsubscribe;
+    return () => {
+      if (unsubscribeUserDoc) unsubscribeUserDoc();
+      unsubscribeAuth();
+    };
   }, []);
 
   return (

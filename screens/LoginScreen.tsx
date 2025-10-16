@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Dimensions, ScrollView, Image, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { authService } from '../services/authService';
 import { useAuth } from '../contexts/AuthContext';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import Constants from 'expo-constants';
+
+WebBrowser.maybeCompleteAuthSession();
 
 type LoginScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -19,6 +24,27 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { userData } = useAuth();
+  const extra = (Constants?.expoConfig as any)?.extra?.googleOAuth || {};
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: extra.webClientId,
+    iosClientId: extra.iosClientId,
+    androidClientId: extra.androidClientId,
+  });
+
+  useEffect(() => {
+    const handleGoogleResponse = async () => {
+      if (response?.type === 'success') {
+        const idToken = (response.params as any)?.id_token;
+        if (idToken) {
+          const res = await authService.signInWithGoogleCredential(idToken);
+          if (!res.success) {
+            Alert.alert('Error', res.error || 'Failed to login with Google');
+          }
+        }
+      }
+    };
+    handleGoogleResponse();
+  }, [response]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -95,7 +121,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
           <View style={styles.divider} />
         </View>
 
-        <TouchableOpacity style={styles.googleButton}>
+        <TouchableOpacity style={styles.googleButton} onPress={() => {
+          if (!extra?.webClientId) {
+            Alert.alert('Google Sign-In not configured', 'Please set googleOAuth client IDs in app.json');
+            return;
+          }
+          if (!request) {
+            Alert.alert('Please wait', 'Google sign-in is initializing. Try again in a second.');
+            return;
+          }
+          promptAsync({ useProxy: true });
+        }}>
           <Image 
             source={{ uri: 'https://www.google.com/favicon.ico' }}
             style={styles.googleIcon}

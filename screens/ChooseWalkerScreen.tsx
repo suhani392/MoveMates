@@ -48,21 +48,26 @@ const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, rou
   const [walkers, setWalkers] = useState<Walker[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Debug schedule data
+  useEffect(() => {
+    console.log('ChooseWalkerScreen scheduleData:', scheduleData);
+  }, [scheduleData]);
+
   const formatScheduleInfo = () => {
     if (!scheduleData) return null;
     
-    const dateObj = new Date(scheduleData.date);
+    const dateObj = new Date(scheduleData.scheduledDate);
     const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
     const dateStr = dateObj.toLocaleDateString('en-US', { 
       month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
+      day: 'numeric',
+      year: 'numeric'
     });
-    
+
     return {
       day: dayName,
       date: dateStr,
-      time: scheduleData.time,
+      time: scheduleData.scheduledTime,
     };
   };
 
@@ -142,7 +147,7 @@ const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, rou
       <TouchableOpacity 
         key={walker.id} 
         style={styles.walkerCard}
-        onPress={() => navigation.navigate('WalkerDetails', { walker })}
+        onPress={() => navigation.navigate('WalkerDetails', { walker, scheduleData })}
         activeOpacity={0.7}
       >
         <View style={styles.cardContent}>

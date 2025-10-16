@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, SafeAreaView, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, SafeAreaView, Modal, Image } from 'react-native';
 import { collection, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { MaterialIcons } from '@expo/vector-icons';
 import { db, auth } from '../firebaseConfig';
+import { useAuth } from '../contexts/AuthContext';
 import { authService } from '../services/authService';
 
 interface User {
@@ -18,27 +19,16 @@ const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [userName, setUserName] = useState('Admin');
+  const { userData } = useAuth();
+  const [showAdmins, setShowAdmins] = useState(true);
+  const [showWalkers, setShowWalkers] = useState(true);
+  const [showWanderers, setShowWanderers] = useState(true);
 
   useEffect(() => {
     fetchUsers();
-    fetchUserData();
   }, []);
 
-  const fetchUserData = async () => {
-    const user = auth.currentUser;
-    if (user) {
-      try {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setUserName(userData.name || 'Admin');
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      }
-    }
-  };
+  // No manual fetch for current admin profile; we rely on useAuth()
 
   const fetchUsers = async () => {
     try {
@@ -77,6 +67,11 @@ const AdminDashboard: React.FC = () => {
     setMenuVisible(false);
   };
 
+  // Group users by role for sectioned display
+  const admins = users.filter(u => u.role === 'admin');
+  const walkers = users.filter(u => u.role === 'walker');
+  const wanderers = users.filter(u => u.role === 'wanderer');
+
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -102,8 +97,12 @@ const AdminDashboard: React.FC = () => {
 
       <ScrollView style={styles.content}>
         <Text style={styles.sectionTitle}>User Management</Text>
-        
-        {users.map((user) => (
+
+        <TouchableOpacity style={styles.roleHeader} onPress={() => setShowAdmins(prev => !prev)}>
+          <Text style={styles.roleSectionTitle}>Admins ({admins.length})</Text>
+          <MaterialIcons name={showAdmins ? 'expand-less' : 'expand-more'} size={22} color="#000" />
+        </TouchableOpacity>
+        {showAdmins && admins.map((user) => (
           <View key={user.id} style={styles.userCard}>
             <Text style={styles.userCardName}>{user.name}</Text>
             <Text style={styles.userEmail}>{user.email}</Text>
@@ -111,30 +110,56 @@ const AdminDashboard: React.FC = () => {
             <Text style={styles.userStatus}>
               Status: {user.approved ? 'Approved' : 'Pending'}
             </Text>
-            
-            {user.role === 'walker' && (
-              <View style={styles.actionButtons}>
-                <TouchableOpacity
-                  style={[styles.button, styles.approveButton]}
-                  onPress={() => handleApproveWalker(user.id, true)}
-                  disabled={user.approved}
-                >
-                  <Text style={styles.buttonText}>
-                    {user.approved ? 'Approved' : 'Approve'}
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.button, styles.rejectButton]}
-                  onPress={() => handleApproveWalker(user.id, false)}
-                  disabled={!user.approved}
-                >
-                  <Text style={styles.buttonText}>
-                    {user.approved ? 'Reject' : 'Rejected'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
+          </View>
+        ))}
+
+        <TouchableOpacity style={styles.roleHeader} onPress={() => setShowWalkers(prev => !prev)}>
+          <Text style={styles.roleSectionTitle}>Walkers ({walkers.length})</Text>
+          <MaterialIcons name={showWalkers ? 'expand-less' : 'expand-more'} size={22} color="#000" />
+        </TouchableOpacity>
+        {showWalkers && walkers.map((user) => (
+          <View key={user.id} style={styles.userCard}>
+            <Text style={styles.userCardName}>{user.name}</Text>
+            <Text style={styles.userEmail}>{user.email}</Text>
+            <Text style={styles.userRole}>Role: {user.role}</Text>
+            <Text style={styles.userStatus}>
+              Status: {user.approved ? 'Approved' : 'Pending'}
+            </Text>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[styles.button, styles.approveButton]}
+                onPress={() => handleApproveWalker(user.id, true)}
+                disabled={user.approved}
+              >
+                <Text style={styles.buttonText}>
+                  {user.approved ? 'Approved' : 'Approve'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.rejectButton]}
+                onPress={() => handleApproveWalker(user.id, false)}
+                disabled={!user.approved}
+              >
+                <Text style={styles.buttonText}>
+                  {user.approved ? 'Reject' : 'Rejected'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+
+        <TouchableOpacity style={styles.roleHeader} onPress={() => setShowWanderers(prev => !prev)}>
+          <Text style={styles.roleSectionTitle}>Wanderers ({wanderers.length})</Text>
+          <MaterialIcons name={showWanderers ? 'expand-less' : 'expand-more'} size={22} color="#000" />
+        </TouchableOpacity>
+        {showWanderers && wanderers.map((user) => (
+          <View key={user.id} style={styles.userCard}>
+            <Text style={styles.userCardName}>{user.name}</Text>
+            <Text style={styles.userEmail}>{user.email}</Text>
+            <Text style={styles.userRole}>Role: {user.role}</Text>
+            <Text style={styles.userStatus}>
+              Status: {user.approved ? 'Approved' : 'Pending'}
+            </Text>
           </View>
         ))}
       </ScrollView>
@@ -157,9 +182,16 @@ const AdminDashboard: React.FC = () => {
               }}
             >
               <View style={styles.profileCircle}>
-                <MaterialIcons name="person" size={40} color="#666" />
+                {userData?.profileImage || userData?.image ? (
+                  <Image
+                    source={{ uri: (userData.profileImage || userData.image) }}
+                    style={{ width: 70, height: 70, borderRadius: 35 }}
+                  />
+                ) : (
+                  <MaterialIcons name="person" size={40} color="#666" />
+                )}
               </View>
-              <Text style={styles.userName}>{userName}</Text>
+              <Text style={styles.userName}>{userData?.name || 'Admin'}</Text>
             </TouchableOpacity>
 
             {/* Menu Items */}
@@ -275,6 +307,18 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 15,
     color: '#000000',
+  },
+  roleSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 10,
+    marginBottom: 8,
+    color: '#000000',
+  },
+  roleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   userCard: {
     backgroundColor: '#F5F5F5',

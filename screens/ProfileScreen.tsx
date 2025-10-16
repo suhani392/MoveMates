@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, RefreshControl, Image } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { auth, db } from '../firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import { auth } from '../firebaseConfig';
+import { useAuth } from '../contexts/AuthContext';
 
 type ProfileScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -12,51 +12,19 @@ type ProfileScreenProps = {
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [userData, setUserData] = useState<any>(null);
+  const { userData } = useAuth();
 
   useEffect(() => {
-    fetchUserData();
-  }, []);
-
-  // Add focus listener to refresh data when screen comes into focus
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchUserData();
-    });
-
-    return unsubscribe;
-  }, [navigation]);
-
-  const fetchUserData = async (isRefreshing = false) => {
-    const user = auth.currentUser;
-    if (user) {
-      try {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          setUserData(data);
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      } finally {
-        if (isRefreshing) {
-          setRefreshing(false);
-        } else {
-          setLoading(false);
-        }
-      }
-    } else {
-      if (isRefreshing) {
-        setRefreshing(false);
-      } else {
-        setLoading(false);
-      }
+    // When auth context resolves, stop loading
+    if (userData !== undefined) {
+      setLoading(false);
     }
-  };
+  }, [userData]);
 
   const onRefresh = () => {
+    // We rely on real-time context; just briefly show the spinner
     setRefreshing(true);
-    fetchUserData(true);
+    setTimeout(() => setRefreshing(false), 400);
   };
 
   const getRoleDisplayName = (role: string) => {
@@ -114,9 +82,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <MaterialIcons name="person" size={80} color="#FFFFFF" />
-            </View>
+            {userData?.profileImage || userData?.image ? (
+              <Image
+                source={{ uri: (userData.profileImage || userData.image) }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={styles.avatar}>
+                <MaterialIcons name="person" size={80} color="#FFFFFF" />
+              </View>
+            )}
           </View>
 
           <View style={styles.userInfoContainer}>
@@ -234,6 +209,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#000000',
   },
   userInfoContainer: {
     flex: 1,

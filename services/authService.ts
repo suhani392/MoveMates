@@ -2,7 +2,9 @@ import {
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
     signOut,
-    User 
+    User,
+    GoogleAuthProvider,
+    signInWithCredential 
   } from 'firebase/auth';
   import { doc, setDoc, getDoc } from 'firebase/firestore';
   import { auth, db } from '../firebaseConfig';
@@ -74,6 +76,35 @@ import {
       } catch (error: any) {
         return { success: false, error: error.message };
       }
+    },
+
+    // Sign in with Google credential (works for both login and first-time signup)
+    async signInWithGoogleCredential(idToken: string, accessToken?: string) {
+      try {
+        const credential = GoogleAuthProvider.credential(idToken, accessToken);
+        const { user } = await signInWithCredential(auth, credential);
+
+        const userRef = doc(db, 'users', user.uid);
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) {
+          const displayName = user.displayName || '';
+          const [first, ...rest] = displayName.split(' ');
+          const name = displayName || user.email || 'User';
+          const userDoc = {
+            uid: user.uid,
+            name,
+            email: user.email || '',
+            phone: user.phoneNumber || '',
+            role: 'wanderer',
+            approved: true,
+            createdAt: new Date(),
+            profileImage: user.photoURL || undefined,
+          };
+          await setDoc(userRef, userDoc);
+        }
+        return { success: true, user };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
     }
   };
-  

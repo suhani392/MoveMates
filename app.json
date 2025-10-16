@@ -13,9 +13,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.movemates.app"
     },
     "android": {
+      "package": "com.movemates.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -25,6 +27,16 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-web-browser"
+    ],
+    "extra": {
+      "googleOAuth": {
+        "webClientId": "642952440569-r97i0vfni9pd3r3j2992l92l7m6936p1.apps.googleusercontent.com",
+        "iosClientId": "",
+        "androidClientId": "642952440569-j8pk0rs3ehd9250m4tmf44of85me06k9.apps.googleusercontent.com"
+      }
     }
   }
 }

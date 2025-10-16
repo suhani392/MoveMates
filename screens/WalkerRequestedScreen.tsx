@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
+import { auth } from '../firebaseConfig';
+import { WalkRequestService } from '../services/walkRequestService';
 
 type WalkerRequestedScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -18,17 +21,80 @@ type WalkerRequestedScreenProps = {
 const WalkerRequestedScreen: React.FC<WalkerRequestedScreenProps> = ({ navigation, route }) => {
   const walker = route.params?.walker;
   const scheduleData = route.params?.scheduleData;
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    createWalkRequest();
+  }, []);
+
+  const createWalkRequest = async () => {
+    console.log('Walker data:', walker);
+    console.log('Schedule data:', scheduleData);
+    
+    if (!walker || !scheduleData) {
+      Alert.alert('Error', `Missing data - Walker: ${!!walker}, Schedule: ${!!scheduleData}`);
+      navigation.goBack();
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+      Alert.alert('Error', 'User not authenticated');
+      navigation.goBack();
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const requestData = {
+        wandererId: user.uid,
+        wandererName: scheduleData.wandererName || 'Unknown Wanderer',
+        wandererImage: scheduleData.wandererImage,
+        walkerId: walker.id,
+        walkerName: walker.name,
+        pickup: scheduleData.pickup,
+        destination: scheduleData.destination,
+        scheduledDate: scheduleData.scheduledDate,
+        scheduledTime: scheduleData.scheduledTime,
+        preference: scheduleData.preference || 'Solo',
+        pricePerHour: walker.pricePerHour,
+        estimatedDuration: scheduleData.estimatedDuration,
+        // Only include notes if it exists and is not undefined
+        ...(scheduleData.notes && { notes: scheduleData.notes }),
+      };
+
+      const id = await WalkRequestService.createRequest(requestData);
+      setRequestId(id);
+      console.log('Walk request created successfully:', id);
+    } catch (error) {
+      console.error('Error creating walk request:', error);
+      Alert.alert('Error', 'Failed to send request. Please try again.');
+      navigation.goBack();
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleDone = () => {
     // Navigate back to home or walker list
     navigation.navigate('WandererHome');
   };
 
-  const handleCancelRequest = () => {
-    // TODO: Cancel the request in database
-    console.log('Canceling request for walker:', walker?.id);
-    // Navigate back
-    navigation.goBack();
+  const handleCancelRequest = async () => {
+    if (!requestId) {
+      Alert.alert('Error', 'No request to cancel');
+      return;
+    }
+
+    try {
+      await WalkRequestService.cancelRequest(requestId);
+      Alert.alert('Success', 'Request cancelled successfully');
+      navigation.navigate('WandererHome');
+    } catch (error) {
+      console.error('Error cancelling request:', error);
+      Alert.alert('Error', 'Failed to cancel request. Please try again.');
+    }
   };
 
   return (

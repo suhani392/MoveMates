@@ -15,8 +15,8 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { authService } from '../services/authService';
-import { auth, db } from '../firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import { auth } from '../firebaseConfig';
+import { useAuth } from '../contexts/AuthContext';
 
 type WandererHomeScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -26,27 +26,10 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   const [pickup, setPickup] = useState('');
   const [destination, setDestination] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
-  const [userName, setUserName] = useState('User Name');
+  const { userData } = useAuth();
 
 
-  useEffect(() => {
-    const fetchUserData = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            setUserName(userData.name || 'User Name');
-          }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-        }
-      }
-    };
-
-    fetchUserData();
-  }, []);
+  // No manual fetch required; we rely on real-time context
 
   const handleSignOut = async () => {
     await authService.signOut();
@@ -167,9 +150,16 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
               }}
             >
               <View style={styles.profileCircle}>
-                <MaterialIcons name="person" size={40} color="#666" />
+                {userData?.profileImage || userData?.image ? (
+                  <Image
+                    source={{ uri: (userData.profileImage || userData.image) }}
+                    style={{ width: 70, height: 70, borderRadius: 35 }}
+                  />
+                ) : (
+                  <MaterialIcons name="person" size={40} color="#666" />
+                )}
               </View>
-              <Text style={styles.userName}>{userName}</Text>
+              <Text style={styles.userName}>{userData?.name || 'User Name'}</Text>
             </TouchableOpacity>
 
             {/* Menu Items */}

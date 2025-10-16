@@ -13,14 +13,17 @@ import {
 import { Calendar } from 'react-native-calendars';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp } from '@react-navigation/native';
+import { useAuth } from '../contexts/AuthContext';
 
 type ScheduleDateTimeScreenProps = {
   navigation: StackNavigationProp<any>;
+  route: RouteProp<{ params: { pickup?: string; destination?: string } }, 'params'>;
 };
 
 const ITEM_HEIGHT = 50;
 
-const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigation }) => {
+const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigation, route }) => {
   // State management
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedHour, setSelectedHour] = useState(10);
@@ -29,6 +32,12 @@ const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigat
   const [selectedReminder, setSelectedReminder] = useState('None');
   const [selectedPreference, setSelectedPreference] = useState('Solo');
   const [selectedRecurrence, setSelectedRecurrence] = useState('None');
+  const { userData } = useAuth();
+
+  // Debug route params
+  useEffect(() => {
+    console.log('ScheduleDateTimeScreen route params:', route.params);
+  }, [route.params]);
 
   // Refs for ScrollViews
   const hourScrollRef = useRef<ScrollView>(null);
@@ -67,11 +76,16 @@ const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigat
     }
     
     const scheduleData = {
-      date: selectedDate,
-      time: `${selectedHour.toString().padStart(2, '0')}:${selectedMinute.toString().padStart(2, '0')} ${selectedPeriod}`,
-      reminder: selectedReminder,
+      pickup: route.params?.pickup || '',
+      destination: route.params?.destination || '',
+      scheduledDate: selectedDate,
+      scheduledTime: `${selectedHour.toString().padStart(2, '0')}:${selectedMinute.toString().padStart(2, '0')} ${selectedPeriod}`,
       preference: selectedPreference,
+      reminder: selectedReminder,
       recurrence: selectedRecurrence,
+      wandererName: userData?.name || 'Unknown Wanderer',
+      wandererImage: userData?.profileImage || userData?.image,
+      estimatedDuration: '30-45 minutes', // You can calculate this based on distance
     };
     
     console.log('Schedule Data:', scheduleData);

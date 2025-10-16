@@ -5,52 +5,45 @@ import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { authService } from '../services/authService';
 import { auth, db } from '../firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
+import { WalkRequestService, WalkRequest } from '../services/walkRequestService';
 
 type WalkerHomeScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
-interface WalkRequest {
-  id: string;
-  name: string;
-  rating: number;
-  pace: string;
-  pickup: string;
-  destination: string;
-  preference: string;
-}
+// Remove the old interface - using the one from service
 
 const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
   const [isAvailable, setIsAvailable] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [userName, setUserName] = useState('User Name');
+  const [incomingRequests, setIncomingRequests] = useState<WalkRequest[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { userData } = useAuth();
 
   useEffect(() => {
-    const fetchUserData = async () => {
       const user = auth.currentUser;
-      if (user) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            setUserName(userData.name || 'User Name');
-            // Load the current availability status from Firestore
-            setIsAvailable(userData.available !== undefined ? userData.available : true);
-            
-            // Set user as online when they open the walker home screen
-            await updateDoc(doc(db, 'users', user.uid), {
-              isOnline: true,
-              currentWalkStatus: 'idle',
-            });
-          }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-        }
+    if (user) {
+      // When userData arrives/changes, update availability and online status once
+      if (userData) {
+        setIsAvailable(userData.available !== undefined ? userData.available : true);
+        updateDoc(doc(db, 'users', user.uid), {
+          isOnline: true,
+          currentWalkStatus: 'idle',
+        }).catch(() => {});
       }
-    };
 
-    fetchUserData();
-  }, []);
+      // Subscribe to incoming walk requests
+      const unsubscribe = WalkRequestService.subscribeToWalkerRequests(user.uid, (requests) => {
+        console.log('Received walk requests:', requests.length, 'requests');
+        setIncomingRequests(requests);
+      });
+
+      // Test code removed - system is working!
+
+      return () => unsubscribe();
+    }
+  }, [userData]);
 
   const handleSignOut = async () => {
     await authService.signOut();
@@ -82,36 +75,30 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
     }
   };
 
-  // Mock data for incoming requests
-  const incomingRequests: WalkRequest[] = [
-    {
-      id: '1',
-      name: 'Suhani Badhe',
-      rating: 4.9,
-      pace: 'Slow',
-      pickup: 'S3 Lifestyle Apartment',
-      destination: 'Rose Icon',
-      preference: 'Solo',
-    },
-    {
-      id: '2',
-      name: 'Atharva Gholap',
-      rating: 4.5,
-      pace: 'Fast',
-      pickup: 'S3 Lifestyle Apartment',
-      destination: 'Rose Icon',
-      preference: 'Group',
-    },
-    {
-      id: '3',
-      name: 'Sushant Manel',
-      rating: 4.0,
-      pace: 'Moderate',
-      pickup: 'S3 Lifestyle Apartment',
-      destination: 'Rose Icon',
-      preference: 'Pet',
-    },
-  ];
+  // Handle accepting a request
+  const handleAcceptRequest = async (requestId: string) => {
+    try {
+      await WalkRequestService.acceptRequest(requestId);
+      // Update walker status to busy
+      const user = auth.currentUser;
+      if (user) {
+        await updateDoc(doc(db, 'users', user.uid), {
+          currentWalkStatus: 'busy',
+        });
+      }
+    } catch (error) {
+      console.error('Error accepting request:', error);
+    }
+  };
+
+  // Handle declining a request
+  const handleDeclineRequest = async (requestId: string) => {
+    try {
+      await WalkRequestService.declineRequest(requestId);
+    } catch (error) {
+      console.error('Error declining request:', error);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -130,7 +117,7 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Greeting */}
-        <Text style={styles.greeting}>Hello, {userName}!</Text>
+        <Text style={styles.greeting}>Hello, {userData?.name || 'User Name'}!</Text>
 
         {/* Availability Toggle Card */}
         <View style={styles.availabilityCard}>
@@ -201,38 +188,80 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
         </View>
 
         {/* Incoming Requests */}
+        <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Incoming Requests</Text>
-        
-        {incomingRequests.map((request) => (
           <TouchableOpacity 
-            key={request.id} 
-            style={styles.requestCard}
-            activeOpacity={0.7}
-            onPress={() => navigation.navigate('WandererDetails', { wanderer: request })}
+            style={styles.refreshButton}
+            onPress={() => {
+              console.log('Manual refresh triggered');
+              setRefreshKey(prev => prev + 1);
+            }}
           >
+            <MaterialIcons name="refresh" size={20} color="#666" />
+          </TouchableOpacity>
+        </View>
+        
+        {incomingRequests.length === 0 ? (
+          <View style={styles.noRequestsContainer}>
+            <MaterialIcons name="inbox" size={48} color="#CCCCCC" />
+            <Text style={styles.noRequestsText}>No pending requests</Text>
+            <Text style={styles.noRequestsSubtext}>You'll see walk requests here when they come in</Text>
+          </View>
+        ) : (
+          incomingRequests.map((request) => (
+            <View key={request.id} style={styles.requestCard}>
             <View style={styles.cardContent}>
-              {/* Profile Image with Rating Badge */}
+                {/* Profile Image */}
               <View style={styles.profileImageContainer}>
+                  {request.wandererImage ? (
+                    <Image 
+                      source={{ uri: request.wandererImage }} 
+                      style={styles.profileImageActual} 
+                    />
+                  ) : (
                 <View style={styles.profileImage}>
                   <MaterialIcons name="person" size={60} color="#CCCCCC" />
                 </View>
-                {/* Rating Badge on Bottom Right */}
-                <View style={styles.ratingBadge}>
-                  <MaterialIcons name="star" size={14} color="#FFC107" />
-                  <Text style={styles.ratingBadgeText}>{request.rating}</Text>
-                </View>
+                  )}
               </View>
 
               {/* Wanderer Info */}
               <View style={styles.requestDetails}>
-                <Text style={styles.requestName}>{request.name}</Text>
+                  <Text style={styles.requestName}>{request.wandererName}</Text>
                 <Text style={styles.requestInfo}>Pickup: {request.pickup}</Text>
                 <Text style={styles.requestInfo}>Destination: {request.destination}</Text>
+                  <Text style={styles.requestInfo}>Date: {request.scheduledDate}</Text>
+                  <Text style={styles.requestInfo}>Time: {request.scheduledTime}</Text>
+                  {request.preference && (
                 <Text style={styles.requestInfo}>Preference: {request.preference}</Text>
+                  )}
+                  {request.pricePerHour && (
+                    <Text style={styles.requestInfo}>Rate: ₹{request.pricePerHour}/hour</Text>
+                  )}
+                </View>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.declineButton]}
+                  onPress={() => handleDeclineRequest(request.id!)}
+                >
+                  <MaterialIcons name="close" size={20} color="#FFFFFF" />
+                  <Text style={styles.actionButtonText}>Decline</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.acceptButton]}
+                  onPress={() => handleAcceptRequest(request.id!)}
+                >
+                  <MaterialIcons name="check" size={20} color="#FFFFFF" />
+                  <Text style={styles.actionButtonText}>Accept</Text>
+                </TouchableOpacity>
               </View>
             </View>
-          </TouchableOpacity>
-        ))}
+          ))
+        )}
       </ScrollView>
 
       {/* Bottom Navigation Icon */}
@@ -260,9 +289,16 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
               }}
             >
               <View style={styles.profileCircle}>
-                <MaterialIcons name="person" size={40} color="#666" />
+                {userData?.profileImage || userData?.image ? (
+                  <Image
+                    source={{ uri: (userData.profileImage || userData.image) }}
+                    style={{ width: 70, height: 70, borderRadius: 35 }}
+                  />
+                ) : (
+                  <MaterialIcons name="person" size={40} color="#666" />
+                )}
               </View>
-              <Text style={styles.userName}>{userName}</Text>
+              <Text style={styles.userName}>{userData?.name || 'User Name'}</Text>
             </TouchableOpacity>
 
             {/* Menu Items */}
@@ -521,11 +557,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#22C55E',
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#000000',
-    marginBottom: 15,
+  },
+  refreshButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#F5F5F5',
   },
   requestCard: {
     backgroundColor: '#F7EDD9',
@@ -658,6 +704,57 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FF0000',
     fontWeight: '600',
+  },
+  // New styles for request management
+  noRequestsContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  noRequestsText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#666666',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noRequestsSubtext: {
+    fontSize: 14,
+    color: '#999999',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 15,
+    gap: 10,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 25,
+    gap: 6,
+  },
+  acceptButton: {
+    backgroundColor: '#22C55E',
+  },
+  declineButton: {
+    backgroundColor: '#EF4444',
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  profileImageActual: {
+    width: 110,
+    height: 110,
+    borderRadius: 15,
   },
 });
 

@@ -14,8 +14,9 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import * as ImagePicker from 'expo-image-picker';
-import { auth, db } from '../firebaseConfig';
+import { auth, db, storage } from '../firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 type EditProfileScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -135,9 +136,22 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
           }
         }
 
-        // Add profile image if changed
-        if (profileImage) {
-          updateData.profileImage = profileImage;
+        // Add profile image if changed: convert to base64 and store in Firestore
+        if (profileImage && profileImage.startsWith('file')) {
+          try {
+            const response = await fetch(profileImage);
+            const blob = await response.blob();
+            const base64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+            updateData.profileImage = base64;
+            updateData.updatedAt = Date.now();
+          } catch (uploadError: any) {
+            console.error('Image conversion error:', uploadError);
+            // Continue without image if conversion fails
+          }
         }
 
         await updateDoc(doc(db, 'users', user.uid), updateData);
@@ -148,8 +162,8 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
             onPress: () => navigation.goBack(),
           },
         ]);
-      } catch (error) {
-        console.error('Error updating profile:', error);
+      } catch (error: any) {
+        console.error('Error updating profile:', error?.code || '', error?.message || '', error);
         Alert.alert('Error', 'Failed to update profile');
       } finally {
         setSaving(false);

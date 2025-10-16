@@ -3,6 +3,7 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getDatabase, Database } from 'firebase/database';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -10,7 +11,7 @@ const firebaseConfig = {
   authDomain: "movemates07.firebaseapp.com",
   databaseURL: "https://movemates07-default-rtdb.firebaseio.com",
   projectId: "movemates07",
-  storageBucket: "movemates07.firebasestorage.app",
+  storageBucket: "movemates07.appspot.com",
   messagingSenderId: "641694306145",
   appId: "1:641694306145:web:b9e0138c8573774cfb3f20",
   measurementId: "G-LFRX6B2TQF"
@@ -28,3 +29,4 @@ const auth = initializeAuth(app, {
 export { auth };
 export const db: Firestore = getFirestore(app);
 export const database: Database = getDatabase(app);
+export const storage: FirebaseStorage = getStorage(app);
