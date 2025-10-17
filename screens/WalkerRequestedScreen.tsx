@@ -47,12 +47,17 @@ const WalkerRequestedScreen: React.FC<WalkerRequestedScreenProps> = ({ navigatio
 
     setIsLoading(true);
     try {
+      console.log('Walker object:', walker);
+      console.log('Walker image:', walker.image);
+      console.log('Walker profileImage:', walker.profileImage);
+      
       const requestData = {
         wandererId: user.uid,
         wandererName: scheduleData.wandererName || 'Unknown Wanderer',
         wandererImage: scheduleData.wandererImage,
         walkerId: walker.id,
         walkerName: walker.name,
+        walkerImage: walker.image || walker.profileImage,
         pickup: scheduleData.pickup,
         destination: scheduleData.destination,
         scheduledDate: scheduleData.scheduledDate,
@@ -64,6 +69,7 @@ const WalkerRequestedScreen: React.FC<WalkerRequestedScreenProps> = ({ navigatio
         ...(scheduleData.notes && { notes: scheduleData.notes }),
       };
 
+      console.log('Request data being saved:', requestData);
       const id = await WalkRequestService.createRequest(requestData);
       setRequestId(id);
       console.log('Walk request created successfully:', id);

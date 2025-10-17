@@ -18,6 +18,8 @@ import WalkerDetailsScreen from '../screens/WalkerDetailsScreen';
 import WalkerRequestedScreen from '../screens/WalkerRequestedScreen';
 import WalkerUpdatesScreen from '../screens/WalkerUpdatesScreen';
 import WandererDetailsScreen from '../screens/WandererDetailsScreen';
+import WandererUpdatesScreen from '../screens/WandererUpdatesScreen';
+import ChatScreen from '../screens/ChatScreen';
 
 const Stack = createStackNavigator();
 
@@ -71,6 +73,8 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="WalkerRequested" component={WalkerRequestedScreen} />
       <Stack.Screen name="WalkerUpdates" component={WalkerUpdatesScreen} />
       <Stack.Screen name="WandererDetails" component={WandererDetailsScreen} />
+      <Stack.Screen name="WandererUpdates" component={WandererUpdatesScreen} />
+      <Stack.Screen name="Chat" component={ChatScreen} />
     </Stack.Navigator>
   );
 };

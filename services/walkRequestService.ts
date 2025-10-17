@@ -19,6 +19,7 @@ export interface WalkRequest {
   wandererImage?: string;
   walkerId: string;
   walkerName: string;
+  walkerImage?: string;
   pickup: string;
   destination: string;
   scheduledDate: string;
@@ -66,9 +67,9 @@ export class WalkRequestService {
           ...doc.data(),
         } as WalkRequest));
         
-        // Filter for pending and accepted requests on client side
+        // Filter for pending requests only on client side
         const filteredRequests = requests.filter(request => 
-          request.status === 'pending' || request.status === 'accepted'
+          request.status === 'pending'
         );
         
         // Sort by createdAt descending on the client side

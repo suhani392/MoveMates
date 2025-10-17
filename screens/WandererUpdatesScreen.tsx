@@ -16,15 +16,17 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 
-type WalkerUpdatesScreenProps = {
+type WandererUpdatesScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
 interface WalkRequest {
   id: string;
+  wandererId: string;
+  wandererName: string;
+  wandererImage?: string;
   walkerId: string;
   walkerName: string;
-  walkerImage?: string;
   status: 'pending' | 'accepted' | 'declined' | 'completed';
   pickup: string;
   destination: string;
@@ -35,7 +37,7 @@ interface WalkRequest {
   acceptedAt?: any;
 }
 
-const WalkerUpdatesScreen: React.FC<WalkerUpdatesScreenProps> = ({ navigation }) => {
+const WandererUpdatesScreen: React.FC<WandererUpdatesScreenProps> = ({ navigation }) => {
   const [requests, setRequests] = useState<WalkRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,11 +48,11 @@ const WalkerUpdatesScreen: React.FC<WalkerUpdatesScreenProps> = ({ navigation })
       return;
     }
 
-    // Fetch walk requests for this wanderer
+    // Fetch accepted walk requests for this walker
     const requestsRef = collection(db, 'walkRequests');
     const requestsQuery = query(
       requestsRef,
-      where('wandererId', '==', user.uid),
+      where('walkerId', '==', user.uid),
       where('status', '==', 'accepted')
     );
 
@@ -62,10 +64,6 @@ const WalkerUpdatesScreen: React.FC<WalkerUpdatesScreenProps> = ({ navigation })
             id: doc.id,
             ...doc.data(),
           } as WalkRequest));
-          console.log('Walker Updates - Received requests:', requestsList);
-          requestsList.forEach(req => {
-            console.log(`Request ${req.id} - walkerImage:`, req.walkerImage);
-          });
           setRequests(requestsList);
         } else {
           setRequests([]);
@@ -73,7 +71,7 @@ const WalkerUpdatesScreen: React.FC<WalkerUpdatesScreenProps> = ({ navigation })
         setLoading(false);
       },
       (error) => {
-        console.error('Error fetching walk requests:', error);
+        console.error('Error fetching accepted walk requests:', error);
         setLoading(false);
       }
     );
@@ -81,29 +79,29 @@ const WalkerUpdatesScreen: React.FC<WalkerUpdatesScreenProps> = ({ navigation })
     return () => unsubscribe();
   }, []);
 
-  const handleChatWithWalker = async (walkerId: string, walkerName: string, walkerImage?: string) => {
+  const handleChatWithWanderer = async (wandererId: string, wandererName: string, wandererImage?: string) => {
     navigation.navigate('Chat', {
-      userId: walkerId,
-      userName: walkerName,
-      userImage: walkerImage,
+      userId: wandererId,
+      userName: wandererName,
+      userImage: wandererImage,
     });
   };
 
-  const handleCallWalker = async (walkerId: string, walkerName: string) => {
+  const handleCallWanderer = async (wandererId: string, wandererName: string) => {
     try {
-      // Fetch walker's phone number from database
-      const walkerDoc = await getDoc(doc(db, 'users', walkerId));
+      // Fetch wanderer's phone number from database
+      const wandererDoc = await getDoc(doc(db, 'users', wandererId));
       
-      if (!walkerDoc.exists()) {
-        Alert.alert('Error', 'Walker information not found');
+      if (!wandererDoc.exists()) {
+        Alert.alert('Error', 'Wanderer information not found');
         return;
       }
 
-      const walkerData = walkerDoc.data();
-      const phoneNumber = walkerData?.phoneNumber || walkerData?.phone;
+      const wandererData = wandererDoc.data();
+      const phoneNumber = wandererData?.phoneNumber || wandererData?.phone;
 
       if (!phoneNumber) {
-        Alert.alert('Phone Number Not Available', `${walkerName} has not added their phone number yet.`);
+        Alert.alert('Phone Number Not Available', `${wandererName} has not added their phone number yet.`);
         return;
       }
 
@@ -117,7 +115,7 @@ const WalkerUpdatesScreen: React.FC<WalkerUpdatesScreenProps> = ({ navigation })
         Alert.alert('Error', 'Unable to make phone calls on this device');
       }
     } catch (error) {
-      console.error('Error calling walker:', error);
+      console.error('Error calling wanderer:', error);
       Alert.alert('Error', 'Failed to initiate call. Please try again.');
     }
   };
@@ -130,7 +128,7 @@ const WalkerUpdatesScreen: React.FC<WalkerUpdatesScreenProps> = ({ navigation })
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
             <MaterialIcons name="close" size={28} color="#000000" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Walker Updates</Text>
+          <Text style={styles.headerTitle}>Wanderer Updates</Text>
         </View>
 
         {/* Content */}
@@ -144,20 +142,20 @@ const WalkerUpdatesScreen: React.FC<WalkerUpdatesScreenProps> = ({ navigation })
             <View key={request.id} style={styles.updateContainer}>
               {/* Acceptance Card */}
               <View style={styles.acceptanceCard}>
-                <View style={styles.walkerInfoHeader}>
-                  {request.walkerImage ? (
+                <View style={styles.wandererInfoHeader}>
+                  {request.wandererImage ? (
                     <Image 
-                      source={{ uri: request.walkerImage }} 
-                      style={styles.walkerAvatar} 
+                      source={{ uri: request.wandererImage }} 
+                      style={styles.wandererAvatar} 
                     />
                   ) : (
-                    <View style={styles.walkerAvatarPlaceholder}>
+                    <View style={styles.wandererAvatarPlaceholder}>
                       <MaterialIcons name="person" size={30} color="#CCCCCC" />
                     </View>
                   )}
-                  <View style={styles.walkerTextInfo}>
+                  <View style={styles.wandererTextInfo}>
                     <Text style={styles.acceptanceText}>
-                      Walker {request.walkerName} accepted your request!
+                      You accepted {request.wandererName}'s request!
                     </Text>
                     <Text style={styles.acceptanceSubtext}>
                       Pickup: {request.pickup}
@@ -186,35 +184,35 @@ const WalkerUpdatesScreen: React.FC<WalkerUpdatesScreenProps> = ({ navigation })
               </View>
 
               {/* Contact Section */}
-              <Text style={styles.contactTitle}>Need to contact the walker?</Text>
+              <Text style={styles.contactTitle}>Need to contact the wanderer?</Text>
 
               {/* Chat Button */}
               <TouchableOpacity
                 style={styles.actionButton}
-                onPress={() => handleChatWithWalker(request.walkerId, request.walkerName, request.walkerImage)}
+                onPress={() => handleChatWithWanderer(request.wandererId, request.wandererName, request.wandererImage)}
                 activeOpacity={0.8}
               >
                 <MaterialIcons name="chat" size={20} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>Chat with Walker</Text>
+                <Text style={styles.actionButtonText}>Chat with Wanderer</Text>
               </TouchableOpacity>
 
               {/* Call Button */}
               <TouchableOpacity
                 style={[styles.actionButton, styles.callButton]}
-                onPress={() => handleCallWalker(request.walkerId, request.walkerName)}
+                onPress={() => handleCallWanderer(request.wandererId, request.wandererName)}
                 activeOpacity={0.8}
               >
                 <MaterialIcons name="phone" size={20} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>Call Walker</Text>
+                <Text style={styles.actionButtonText}>Call Wanderer</Text>
               </TouchableOpacity>
             </View>
           ))
         ) : (
           <View style={styles.noUpdatesContainer}>
             <MaterialIcons name="update" size={60} color="#CCCCCC" />
-            <Text style={styles.noUpdatesText}>No updates yet</Text>
+            <Text style={styles.noUpdatesText}>No accepted requests yet</Text>
             <Text style={styles.noUpdatesSubtext}>
-              You'll see updates here when a walker accepts your request
+              You'll see updates here when you accept a wanderer's request
             </Text>
           </View>
         )}
@@ -262,17 +260,17 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 20,
   },
-  walkerInfoHeader: {
+  wandererInfoHeader: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  walkerAvatar: {
+  wandererAvatar: {
     width: 60,
     height: 60,
     borderRadius: 30,
     marginRight: 15,
   },
-  walkerAvatarPlaceholder: {
+  wandererAvatarPlaceholder: {
     width: 60,
     height: 60,
     borderRadius: 30,
@@ -281,7 +279,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 15,
   },
-  walkerTextInfo: {
+  wandererTextInfo: {
     flex: 1,
   },
   acceptanceText: {
@@ -385,4 +383,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default WalkerUpdatesScreen;
+export default WandererUpdatesScreen;

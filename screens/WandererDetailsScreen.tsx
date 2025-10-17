@@ -8,10 +8,12 @@ import {
   SafeAreaView,
   Image,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { db, auth } from '../firebaseConfig';
+import { WalkRequestService } from '../services/walkRequestService';
 
 interface Review {
   id: string;
@@ -24,8 +26,10 @@ interface Review {
 
 const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: any }) => {
   const wanderer = route.params?.wanderer;
+  const requestId = route.params?.requestId;
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
 
   // Fetch reviews for this wanderer
   useEffect(() => {
@@ -102,18 +106,70 @@ const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: 
     );
   };
 
-  const handleAcceptRequest = () => {
-    // Handle accept request logic
-    console.log('Request accepted for wanderer:', wanderer.name);
-    // Navigate back or to a confirmation screen
-    navigation.goBack();
+  const handleAcceptRequest = async () => {
+    if (!requestId) {
+      Alert.alert('Error', 'Request ID not found');
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      await WalkRequestService.acceptRequest(requestId);
+      
+      // Update walker status to busy
+      const user = auth.currentUser;
+      if (user) {
+        await updateDoc(doc(db, 'users', user.uid), {
+          currentWalkStatus: 'busy',
+        });
+      }
+
+      Alert.alert(
+        'Request Accepted',
+        `You have accepted the walk request from ${wanderer.name}`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    } catch (error) {
+      console.error('Error accepting request:', error);
+      Alert.alert('Error', 'Failed to accept the request. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
   };
 
-  const handleDeclineRequest = () => {
-    // Handle decline request logic
-    console.log('Request declined for wanderer:', wanderer.name);
-    // Navigate back
-    navigation.goBack();
+  const handleDeclineRequest = async () => {
+    if (!requestId) {
+      Alert.alert('Error', 'Request ID not found');
+      return;
+    }
+
+    Alert.alert(
+      'Decline Request',
+      `Are you sure you want to decline the walk request from ${wanderer.name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Decline',
+          style: 'destructive',
+          onPress: async () => {
+            setProcessing(true);
+            try {
+              await WalkRequestService.declineRequest(requestId);
+              Alert.alert(
+                'Request Declined',
+                'The walk request has been declined.',
+                [{ text: 'OK', onPress: () => navigation.goBack() }]
+              );
+            } catch (error) {
+              console.error('Error declining request:', error);
+              Alert.alert('Error', 'Failed to decline the request. Please try again.');
+            } finally {
+              setProcessing(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (!wanderer) {
@@ -203,20 +259,30 @@ const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: 
 
         {/* Accept Request Button */}
         <TouchableOpacity
-          style={styles.acceptButton}
+          style={[styles.acceptButton, processing && styles.buttonDisabled]}
           onPress={handleAcceptRequest}
           activeOpacity={0.8}
+          disabled={processing}
         >
-          <Text style={styles.acceptButtonText}>Accept Request</Text>
+          {processing ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.acceptButtonText}>Accept Request</Text>
+          )}
         </TouchableOpacity>
 
         {/* Decline Request Button */}
         <TouchableOpacity
-          style={styles.declineButton}
+          style={[styles.declineButton, processing && styles.buttonDisabled]}
           onPress={handleDeclineRequest}
           activeOpacity={0.8}
+          disabled={processing}
         >
-          <Text style={styles.declineButtonText}>Decline Request</Text>
+          {processing ? (
+            <ActivityIndicator size="small" color="#FF0000" />
+          ) : (
+            <Text style={styles.declineButtonText}>Decline Request</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -425,6 +491,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
 });
 

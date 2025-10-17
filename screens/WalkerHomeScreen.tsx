@@ -209,7 +209,22 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
           </View>
         ) : (
           incomingRequests.map((request) => (
-            <View key={request.id} style={styles.requestCard}>
+            <TouchableOpacity 
+              key={request.id} 
+              style={styles.requestCard}
+              onPress={() => navigation.navigate('WandererDetails', { 
+                wanderer: {
+                  id: request.wandererId,
+                  name: request.wandererName,
+                  image: request.wandererImage,
+                  pickup: request.pickup,
+                  destination: request.destination,
+                  preference: request.preference,
+                },
+                requestId: request.id,
+              })}
+              activeOpacity={0.7}
+            >
             <View style={styles.cardContent}>
                 {/* Profile Image */}
               <View style={styles.profileImageContainer}>
@@ -241,32 +256,22 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
                 </View>
               </View>
 
-              {/* Action Buttons */}
-              <View style={styles.actionButtons}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.declineButton]}
-                  onPress={() => handleDeclineRequest(request.id!)}
-                >
-                  <MaterialIcons name="close" size={20} color="#FFFFFF" />
-                  <Text style={styles.actionButtonText}>Decline</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.acceptButton]}
-                  onPress={() => handleAcceptRequest(request.id!)}
-                >
-                  <MaterialIcons name="check" size={20} color="#FFFFFF" />
-                  <Text style={styles.actionButtonText}>Accept</Text>
-                </TouchableOpacity>
+              {/* Tap to View Details Hint */}
+              <View style={styles.viewDetailsHint}>
+                <Text style={styles.viewDetailsText}>Tap to view details</Text>
+                <MaterialIcons name="arrow-forward" size={16} color="#666" />
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
 
       {/* Bottom Navigation Icon */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.bottomNavButton}>
+        <TouchableOpacity 
+          style={styles.bottomNavButton}
+          onPress={() => navigation.navigate('WandererUpdates')}
+        >
           <Image source={require('../assets/walk.png')} style={{ width: 28, height: 28, tintColor: '#FFFFFF' }} />
         </TouchableOpacity>
       </View>
@@ -755,6 +760,21 @@ const styles = StyleSheet.create({
     width: 110,
     height: 110,
     borderRadius: 15,
+  },
+  viewDetailsHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
+    gap: 6,
+  },
+  viewDetailsText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
 });
 
