@@ -29,17 +29,26 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         {/* General Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>General</Text>
-          <TouchableOpacity style={[styles.card, styles.generalCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.generalCard]}
+            onPress={() => navigation.navigate('Language')}
+          >
             <Text style={styles.cardText}>Language</Text>
             <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.card, styles.generalCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.generalCard]}
+            onPress={() => navigation.navigate('RoleChange')}
+          >
             <Text style={styles.cardText}>Role Change</Text>
             <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.card, styles.generalCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.generalCard]}
+            onPress={() => navigation.navigate('Preferences')}
+          >
             <Text style={styles.cardText}>Preferences</Text>
             <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
@@ -48,12 +57,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         {/* Notifications Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notifications</Text>
-          <TouchableOpacity style={[styles.card, styles.notificationCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.notificationCard]}
+            onPress={() => navigation.navigate('PushNotifications')}
+          >
             <Text style={styles.cardText}>Push Notifications</Text>
             <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.card, styles.notificationCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.notificationCard]}
+            onPress={() => navigation.navigate('EmailNotifications')}
+          >
             <Text style={styles.cardText}>Email Notifications</Text>
             <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
@@ -62,17 +77,26 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         {/* Privacy Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Privacy</Text>
-          <TouchableOpacity style={[styles.card, styles.privacyCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.privacyCard]}
+            onPress={() => navigation.navigate('LocationSharing')}
+          >
             <Text style={styles.cardText}>Location Sharing</Text>
             <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.card, styles.privacyCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.privacyCard]}
+            onPress={() => navigation.navigate('ContactsSharing')}
+          >
             <Text style={styles.cardText}>Contacts Sharing</Text>
             <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.card, styles.privacyCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.privacyCard]}
+            onPress={() => navigation.navigate('DataUsage')}
+          >
             <Text style={styles.cardText}>Data Usage</Text>
             <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
@@ -81,7 +105,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         {/* History Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>History</Text>
-          <TouchableOpacity style={[styles.card, styles.historyCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.historyCard]}
+            onPress={() => navigation.navigate('WalkHistory')}
+          >
             <Text style={styles.cardText}>Walk History</Text>
             <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>

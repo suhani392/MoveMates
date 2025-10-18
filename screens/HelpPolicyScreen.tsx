@@ -29,7 +29,10 @@ const HelpPolicyScreen: React.FC<HelpPolicyScreenProps> = ({ navigation }) => {
         {/* FAQs Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>FAQs</Text>
-          <TouchableOpacity style={[styles.card, styles.faqCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.faqCard]}
+            onPress={() => navigation.navigate('FAQs')}
+          >
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>Have Doubts?</Text>
               <Text style={styles.cardSubtitle}>Find answers to common questions</Text>
@@ -41,7 +44,10 @@ const HelpPolicyScreen: React.FC<HelpPolicyScreenProps> = ({ navigation }) => {
         {/* Support Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Support</Text>
-          <TouchableOpacity style={[styles.card, styles.supportCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.supportCard]}
+            onPress={() => navigation.navigate('ContactSupport')}
+          >
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>Contact Support</Text>
               <Text style={styles.cardSubtitle}>Reach out for personal assistance</Text>
@@ -53,7 +59,10 @@ const HelpPolicyScreen: React.FC<HelpPolicyScreenProps> = ({ navigation }) => {
         {/* Legal Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Legal</Text>
-          <TouchableOpacity style={[styles.card, styles.legalCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.legalCard]}
+            onPress={() => navigation.navigate('PrivacyPolicy')}
+          >
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>Privacy Policy</Text>
               <Text style={styles.cardSubtitle}>How we handle your data</Text>
@@ -61,7 +70,10 @@ const HelpPolicyScreen: React.FC<HelpPolicyScreenProps> = ({ navigation }) => {
             <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.card, styles.legalCard, styles.lastCard]}>
+          <TouchableOpacity 
+            style={[styles.card, styles.legalCard, styles.lastCard]}
+            onPress={() => navigation.navigate('TermsConditions')}
+          >
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>Terms & Conditions</Text>
               <Text style={styles.cardSubtitle}>Rules for using MoveMates</Text>

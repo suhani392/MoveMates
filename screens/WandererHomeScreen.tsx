@@ -15,8 +15,9 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { authService } from '../services/authService';
-import { auth } from '../firebaseConfig';
+import { auth, db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 type WandererHomeScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -26,8 +27,27 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   const [pickup, setPickup] = useState('');
   const [destination, setDestination] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const { userData } = useAuth();
 
+  // Listen for unread notifications
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const notificationsRef = collection(db, 'notifications');
+    const unreadQuery = query(
+      notificationsRef,
+      where('userId', '==', user.uid),
+      where('read', '==', false)
+    );
+
+    const unsubscribe = onSnapshot(unreadQuery, (snapshot) => {
+      setHasUnreadNotifications(!snapshot.empty);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // No manual fetch required; we rely on real-time context
 
@@ -68,11 +88,12 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
         <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>
           <MaterialIcons name="menu" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.headerButton} onPress={() => {
-          // Navigate to notifications screen
-          // navigation.navigate('Notifications');
-        }}>
+        <TouchableOpacity 
+          style={styles.headerButton} 
+          onPress={() => navigation.navigate('Notifications')}
+        >
           <MaterialIcons name="notifications" size={28} color="#FFFFFF" />
+          {hasUnreadNotifications && <View style={styles.notificationDot} />}
         </TouchableOpacity>
       </View>
 
@@ -176,7 +197,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
-                // navigation.navigate('Notifications');
+                navigation.navigate('Notifications');
               }}
             >
               <Text style={styles.drawerText}>Notifications</Text>
@@ -259,6 +280,18 @@ const styles = StyleSheet.create({
     height: 45,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#3B82F6',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   walkingIconCircle: {
     position: 'absolute',

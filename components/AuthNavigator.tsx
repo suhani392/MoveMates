@@ -23,6 +23,20 @@ import ChatScreen from '../screens/ChatScreen';
 import RemovedUserScreen from '../screens/RemovedUserScreen';
 import RemovedUsersScreen from '../screens/RemovedUsersScreen';
 import ProfilePhotoScreen from '../screens/ProfilePhotoScreen';
+import LanguageScreen from '../screens/LanguageScreen';
+import RoleChangeScreen from '../screens/RoleChangeScreen';
+import PreferencesScreen from '../screens/PreferencesScreen';
+import PushNotificationsScreen from '../screens/PushNotificationsScreen';
+import EmailNotificationsScreen from '../screens/EmailNotificationsScreen';
+import LocationSharingScreen from '../screens/LocationSharingScreen';
+import ContactsSharingScreen from '../screens/ContactsSharingScreen';
+import DataUsageScreen from '../screens/DataUsageScreen';
+import WalkHistoryScreen from '../screens/WalkHistoryScreen';
+import FAQsScreen from '../screens/FAQsScreen';
+import ContactSupportScreen from '../screens/ContactSupportScreen';
+import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
+import TermsConditionsScreen from '../screens/TermsConditionsScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
 
 const Stack = createStackNavigator();
 
@@ -92,6 +106,20 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="RemovedUser" component={RemovedUserScreen} />
       <Stack.Screen name="RemovedUsers" component={RemovedUsersScreen} />
       <Stack.Screen name="ProfilePhoto" component={ProfilePhotoScreen} />
+      <Stack.Screen name="Language" component={LanguageScreen} />
+      <Stack.Screen name="RoleChange" component={RoleChangeScreen} />
+      <Stack.Screen name="Preferences" component={PreferencesScreen} />
+      <Stack.Screen name="PushNotifications" component={PushNotificationsScreen} />
+      <Stack.Screen name="EmailNotifications" component={EmailNotificationsScreen} />
+      <Stack.Screen name="LocationSharing" component={LocationSharingScreen} />
+      <Stack.Screen name="ContactsSharing" component={ContactsSharingScreen} />
+      <Stack.Screen name="DataUsage" component={DataUsageScreen} />
+      <Stack.Screen name="WalkHistory" component={WalkHistoryScreen} />
+      <Stack.Screen name="FAQs" component={FAQsScreen} />
+      <Stack.Screen name="ContactSupport" component={ContactSupportScreen} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
     </Stack.Navigator>
   );
 };

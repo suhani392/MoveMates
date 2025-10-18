@@ -13,8 +13,9 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { collection, query, where, onSnapshot, addDoc, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, orderBy, Timestamp, serverTimestamp, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
+import { useAuth } from '../contexts/AuthContext';
 
 type ChatScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -27,6 +28,8 @@ interface Message {
   receiverId: string;
   text: string;
   createdAt: any;
+  delivered?: boolean;
+  read?: boolean;
 }
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
@@ -36,6 +39,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const [sending, setSending] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const currentUser = auth.currentUser;
+  const { userData } = useAuth();
 
   useEffect(() => {
     if (!currentUser || !userId) return;
@@ -49,12 +53,29 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
 
     const unsubscribe = onSnapshot(
       messagesQuery,
-      (snapshot) => {
+      async (snapshot) => {
         const messagesList: Message[] = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         } as Message));
         setMessages(messagesList);
+        
+        // Mark messages as delivered and read if they're for current user
+        const chatId = [currentUser.uid, userId].sort().join('_');
+        for (const message of messagesList) {
+          if (message.receiverId === currentUser.uid && !message.read) {
+            const messageRef = doc(db, 'chats', chatId, 'messages', message.id);
+            await updateDoc(messageRef, {
+              delivered: true,
+              read: true,
+            }).catch(() => {});
+          } else if (message.receiverId === currentUser.uid && !message.delivered) {
+            const messageRef = doc(db, 'chats', chatId, 'messages', message.id);
+            await updateDoc(messageRef, {
+              delivered: true,
+            }).catch(() => {});
+          }
+        }
         
         // Scroll to bottom when new messages arrive
         setTimeout(() => {
@@ -72,21 +93,43 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const handleSendMessage = async () => {
     if (!messageText.trim() || !currentUser || sending) return;
 
+    // Store message text and clear input immediately for better UX
+    const textToSend = messageText.trim();
+    setMessageText('');
     setSending(true);
+
     try {
       const chatId = [currentUser.uid, userId].sort().join('_');
       const messagesRef = collection(db, 'chats', chatId, 'messages');
 
+      // Send the message
       await addDoc(messagesRef, {
         senderId: currentUser.uid,
         receiverId: userId,
-        text: messageText.trim(),
+        text: textToSend,
         createdAt: Timestamp.now(),
+        delivered: false,
+        read: false,
       });
 
-      setMessageText('');
+      // Create notification for the receiver (don't await - fire and forget)
+      const notificationsRef = collection(db, 'notifications');
+      addDoc(notificationsRef, {
+        userId: userId, // Receiver of the notification
+        type: 'message',
+        title: 'New Message',
+        message: `${userData?.name || 'Someone'} sent you a message: "${textToSend.substring(0, 50)}${textToSend.length > 50 ? '...' : ''}"`,
+        timestamp: serverTimestamp(),
+        read: false,
+        relatedUserId: currentUser.uid,
+        relatedUserName: userData?.name || 'User',
+        relatedUserImage: userData?.profileImage || userData?.image || '',
+      }).catch(err => console.error('Error creating notification:', err));
+
     } catch (error) {
       console.error('Error sending message:', error);
+      // Optionally restore the message text on error
+      // setMessageText(textToSend);
     } finally {
       setSending(false);
     }
@@ -158,12 +201,32 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
                   ]}>
                     {message.text}
                   </Text>
-                  <Text style={[
-                    styles.messageTime,
-                    isMyMessage ? styles.myMessageTime : styles.theirMessageTime,
-                  ]}>
-                    {formatTime(message.createdAt)}
-                  </Text>
+                  <View style={styles.messageFooter}>
+                    <Text style={[
+                      styles.messageTime,
+                      isMyMessage ? styles.myMessageTime : styles.theirMessageTime,
+                    ]}>
+                      {formatTime(message.createdAt)}
+                    </Text>
+                    {isMyMessage && (
+                      <View style={styles.tickContainer}>
+                        {message.read ? (
+                          // Blue double tick (read)
+                          <View style={styles.doubleTick}>
+                            <MaterialIcons name="done-all" size={16} color="#4A9EFF" />
+                          </View>
+                        ) : message.delivered ? (
+                          // Grey double tick (delivered)
+                          <View style={styles.doubleTick}>
+                            <MaterialIcons name="done-all" size={16} color="#999999" />
+                          </View>
+                        ) : (
+                          // Single grey tick (sent)
+                          <MaterialIcons name="done" size={16} color="#999999" />
+                        )}
+                      </View>
+                    )}
+                  </View>
                 </View>
               );
             })
@@ -209,7 +272,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 15,
-    paddingVertical: 12,
+    paddingTop: 50,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
@@ -295,17 +359,27 @@ const styles = StyleSheet.create({
   theirMessageText: {
     color: '#000000',
   },
+  messageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+    gap: 4,
+  },
   messageTime: {
     fontSize: 11,
-    marginTop: 2,
   },
   myMessageTime: {
     color: '#CCCCCC',
-    textAlign: 'right',
   },
   theirMessageTime: {
     color: '#666666',
-    textAlign: 'left',
+  },
+  tickContainer: {
+    marginLeft: 4,
+  },
+  doubleTick: {
+    marginLeft: -2,
   },
   inputContainer: {
     flexDirection: 'row',

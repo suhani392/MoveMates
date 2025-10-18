@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, SafeAreaView, Modal, Image, TextInput } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { collection, getDocs, doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, getDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { getStorage, ref as storageRef, getDownloadURL } from 'firebase/storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { db, auth } from '../firebaseConfig';
@@ -25,7 +25,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const { userData } = useAuth();
+
+  // Listen for unread notifications
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const notificationsRef = collection(db, 'notifications');
+    const unreadQuery = query(
+      notificationsRef,
+      where('userId', '==', user.uid),
+      where('read', '==', false)
+    );
+
+    const unsubscribe = onSnapshot(unreadQuery, (snapshot) => {
+      setHasUnreadNotifications(!snapshot.empty);
+    });
+
+    return () => unsubscribe();
+  }, []);
   const [showAdmins, setShowAdmins] = useState(true);
   const [showWalkers, setShowWalkers] = useState(true);
   const [showWanderers, setShowWanderers] = useState(true);
@@ -187,11 +207,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
         <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>
           <MaterialIcons name="menu" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.headerButton} onPress={() => {
-          // Navigate to notifications screen
-          // navigation.navigate('Notifications');
-        }}>
+        <TouchableOpacity 
+          style={styles.headerButton} 
+          onPress={() => navigation.navigate('Notifications')}
+        >
           <MaterialIcons name="notifications" size={28} color="#FFFFFF" />
+          {hasUnreadNotifications && <View style={styles.notificationDot} />}
         </TouchableOpacity>
       </View>
 
@@ -470,7 +491,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
-                // navigation.navigate('Notifications');
+                navigation.navigate('Notifications');
               }}
             >
               <Text style={styles.drawerText}>Notifications</Text>
@@ -622,6 +643,18 @@ const styles = StyleSheet.create({
     height: 45,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#3B82F6',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   content: {
     flex: 1,
