@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,10 @@ import {
   Modal,
   Alert,
   Image,
+  ScrollView,
 } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import * as Location from 'expo-location';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { authService } from '../services/authService';
@@ -23,12 +26,65 @@ type WandererHomeScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
+interface LocationSuggestion {
+  description: string;
+  placeId?: string;
+}
+
 const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) => {
   const [pickup, setPickup] = useState('');
   const [destination, setDestination] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [currentAddress, setCurrentAddress] = useState('');
+  const [locationPermission, setLocationPermission] = useState(false);
+  const [pickupSuggestions, setPickupSuggestions] = useState<LocationSuggestion[]>([]);
+  const [destinationSuggestions, setDestinationSuggestions] = useState<LocationSuggestion[]>([]);
+  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
+  const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
+  const [recentLocations, setRecentLocations] = useState<string[]>([]);
+  const mapRef = useRef<MapView>(null);
   const { userData } = useAuth();
+
+  // Request location permission and get current location
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is required to use the map.');
+        return;
+      }
+      setLocationPermission(true);
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      
+      const coords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      setCurrentLocation(coords);
+
+      // Get address from coordinates
+      const address = await reverseGeocode(coords.latitude, coords.longitude);
+      setCurrentAddress(address);
+
+      // Store location in Firestore
+      const user = auth.currentUser;
+      if (user) {
+        await updateDoc(doc(db, 'users', user.uid), {
+          location: coords,
+          lastLocationUpdate: new Date(),
+        }).catch(() => {});
+      }
+    })();
+  }, []);
 
   // Set user as online when component mounts
   useEffect(() => {
@@ -46,6 +102,38 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
       }).catch(() => {});
     };
   }, []);
+
+  // Update location in real-time every 10 seconds
+  useEffect(() => {
+    if (!locationPermission) return;
+
+    const locationInterval = setInterval(async () => {
+      try {
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        
+        const coords = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        };
+        setCurrentLocation(coords);
+
+        // Update Firestore
+        const user = auth.currentUser;
+        if (user) {
+          await updateDoc(doc(db, 'users', user.uid), {
+            location: coords,
+            lastLocationUpdate: new Date(),
+          }).catch(() => {});
+        }
+      } catch (error) {
+        console.error('Error updating location:', error);
+      }
+    }, 10000); // Update every 10 seconds
+
+    return () => clearInterval(locationInterval);
+  }, [locationPermission]);
 
   // Listen for unread notifications
   useEffect(() => {
@@ -65,6 +153,116 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
 
     return () => unsubscribe();
   }, []);
+
+  // Load recent locations from Firestore
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const userRef = doc(db, 'users', user.uid);
+    const unsubscribe = onSnapshot(userRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setRecentLocations(data?.recentLocations || []);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Reverse geocode to get address from coordinates
+  const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
+    try {
+      const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (results.length > 0) {
+        const result = results[0];
+        return `${result.street || ''}, ${result.city || ''}, ${result.region || ''}`;
+      }
+      return 'Current Location';
+    } catch (error) {
+      console.error('Reverse geocode error:', error);
+      return 'Current Location';
+    }
+  };
+
+  // Fetch location suggestions from Google Places API
+  const fetchLocationSuggestions = async (input: string, isPickup: boolean) => {
+    if (input.length < 3) {
+      if (isPickup) {
+        setPickupSuggestions([]);
+        setShowPickupSuggestions(false);
+      } else {
+        setDestinationSuggestions([]);
+        setShowDestinationSuggestions(false);
+      }
+      return;
+    }
+
+    try {
+      const apiKey = 'AIzaSyAAn7WMlGaRR7Si4cf5SCZE91kNOUuxBrQ';
+      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&key=${apiKey}&components=country:in`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.predictions) {
+        const suggestions = data.predictions.map((prediction: any) => ({
+          description: prediction.description,
+          placeId: prediction.place_id,
+        }));
+
+        if (isPickup) {
+          setPickupSuggestions(suggestions);
+          setShowPickupSuggestions(true);
+        } else {
+          setDestinationSuggestions(suggestions);
+          setShowDestinationSuggestions(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching suggestions:', error);
+    }
+  };
+
+  // Handle pickup input change
+  const handlePickupChange = (text: string) => {
+    setPickup(text);
+    fetchLocationSuggestions(text, true);
+  };
+
+  // Handle destination input change
+  const handleDestinationChange = (text: string) => {
+    setDestination(text);
+    fetchLocationSuggestions(text, false);
+  };
+
+  // Select suggestion
+  const selectSuggestion = async (suggestion: string, isPickup: boolean) => {
+    if (isPickup) {
+      setPickup(suggestion);
+      setShowPickupSuggestions(false);
+    } else {
+      setDestination(suggestion);
+      setShowDestinationSuggestions(false);
+    }
+
+    // Save to recent locations
+    const user = auth.currentUser;
+    if (user) {
+      const updatedRecent = [suggestion, ...recentLocations.filter(loc => loc !== suggestion)].slice(0, 5);
+      await updateDoc(doc(db, 'users', user.uid), {
+        recentLocations: updatedRecent,
+      }).catch(() => {});
+    }
+  };
+
+  // Use current location for pickup
+  const useCurrentLocationForPickup = () => {
+    if (currentAddress) {
+      setPickup(currentAddress);
+      setShowPickupSuggestions(false);
+    }
+  };
 
   // No manual fetch required; we rely on real-time context
 
@@ -100,6 +298,30 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Map */}
+      {currentLocation && (
+        <MapView
+          ref={mapRef}
+          style={styles.map}
+          initialRegion={{
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }}
+          showsUserLocation={true}
+          showsMyLocationButton={true}
+          followsUserLocation={true}
+        >
+          {/* Current Location Marker */}
+          <Marker
+            coordinate={currentLocation}
+            title="You are here"
+            description="Your current location"
+          />
+        </MapView>
+      )}
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>
@@ -132,17 +354,64 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
         <View style={styles.bottomCard}>
           {/* Pickup */}
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Pickup</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.inputLabel}>Pickup</Text>
+              {currentAddress && (
+                <TouchableOpacity 
+                  style={styles.currentLocationButton}
+                  onPress={useCurrentLocationForPickup}
+                >
+                  <MaterialIcons name="my-location" size={14} color="#000" />
+                  <Text style={styles.currentLocationText}>Use Current</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             <View style={styles.inputWrapper}>
               <MaterialIcons name="my-location" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 value={pickup}
-                onChangeText={setPickup}
+                onChangeText={handlePickupChange}
                 placeholder="Enter pickup location"
                 placeholderTextColor="#999"
+                onFocus={() => {
+                  if (recentLocations.length > 0 && !pickup) {
+                    setShowPickupSuggestions(true);
+                  }
+                }}
               />
             </View>
+            
+            {/* Pickup Suggestions */}
+            {showPickupSuggestions && (
+              <View style={styles.suggestionsContainer}>
+                {recentLocations.length > 0 && !pickup && (
+                  <>
+                    <Text style={styles.suggestionHeader}>Recent Locations</Text>
+                    {recentLocations.map((location, index) => (
+                      <TouchableOpacity
+                        key={`recent-${index}`}
+                        style={styles.suggestionItem}
+                        onPress={() => selectSuggestion(location, true)}
+                      >
+                        <MaterialIcons name="history" size={18} color="#666" />
+                        <Text style={styles.suggestionText}>{location}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </>
+                )}
+                {pickupSuggestions.map((suggestion, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.suggestionItem}
+                    onPress={() => selectSuggestion(suggestion.description, true)}
+                  >
+                    <MaterialIcons name="place" size={18} color="#666" />
+                    <Text style={styles.suggestionText}>{suggestion.description}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* Destination */}
@@ -153,11 +422,47 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
               <TextInput
                 style={styles.input}
                 value={destination}
-                onChangeText={setDestination}
+                onChangeText={handleDestinationChange}
                 placeholder="Enter destination"
                 placeholderTextColor="#999"
+                onFocus={() => {
+                  if (recentLocations.length > 0 && !destination) {
+                    setShowDestinationSuggestions(true);
+                  }
+                }}
               />
             </View>
+            
+            {/* Destination Suggestions */}
+            {showDestinationSuggestions && (
+              <View style={styles.suggestionsContainer}>
+                {recentLocations.length > 0 && !destination && (
+                  <>
+                    <Text style={styles.suggestionHeader}>Recent Locations</Text>
+                    {recentLocations.map((location, index) => (
+                      <TouchableOpacity
+                        key={`recent-${index}`}
+                        style={styles.suggestionItem}
+                        onPress={() => selectSuggestion(location, false)}
+                      >
+                        <MaterialIcons name="history" size={18} color="#666" />
+                        <Text style={styles.suggestionText}>{location}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </>
+                )}
+                {destinationSuggestions.map((suggestion, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.suggestionItem}
+                    onPress={() => selectSuggestion(suggestion.description, false)}
+                  >
+                    <MaterialIcons name="place" size={18} color="#666" />
+                    <Text style={styles.suggestionText}>{suggestion.description}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* Book Button */}
@@ -282,6 +587,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  map: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
   header: {
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     flexDirection: 'row',
@@ -375,6 +684,59 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  currentLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F0F0',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    gap: 4,
+  },
+  currentLocationText: {
+    fontSize: 12,
+    color: '#000',
+    fontWeight: '600',
+  },
+  suggestionsContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginTop: 8,
+    maxHeight: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  suggestionHeader: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 5,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    gap: 10,
+  },
+  suggestionText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#000',
   },
 
   // Drawer

@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.movemates.app"
+      "bundleIdentifier": "com.movemates.app",
+      "config": {
+        "googleMapsApiKey": "AIzaSyAAn7WMlGaRR7Si4cf5SCZE91kNOUuxBrQ"
+      }
     },
     "android": {
       "package": "com.movemates.app",
@@ -23,7 +26,16 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyAAn7WMlGaRR7Si4cf5SCZE91kNOUuxBrQ"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
