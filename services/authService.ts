@@ -6,7 +6,7 @@ import {
     GoogleAuthProvider,
     signInWithCredential 
   } from 'firebase/auth';
-  import { doc, setDoc, getDoc } from 'firebase/firestore';
+  import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
   import { auth, db } from '../firebaseConfig';
   
   export const authService = {
@@ -71,6 +71,13 @@ import {
     // Sign out
     async signOut() {
       try {
+        const user = auth.currentUser;
+        if (user) {
+          // Set user as offline before signing out
+          await updateDoc(doc(db, 'users', user.uid), {
+            isOnline: false,
+          }).catch(() => {});
+        }
         await signOut(auth);
         return { success: true };
       } catch (error: any) {

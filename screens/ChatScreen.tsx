@@ -37,10 +37,27 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
+  const [isReceiverOnline, setIsReceiverOnline] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const currentUser = auth.currentUser;
   const { userData } = useAuth();
 
+  // Listen to receiver's online status
+  useEffect(() => {
+    if (!userId) return;
+
+    const userRef = doc(db, 'users', userId);
+    const unsubscribe = onSnapshot(userRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
+        setIsReceiverOnline(userData?.isOnline === true);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+
+  // Subscribe to messages and mark as delivered/read
   useEffect(() => {
     if (!currentUser || !userId) return;
 
@@ -60,7 +77,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         } as Message));
         setMessages(messagesList);
         
-        // Mark messages as delivered and read if they're for current user
+        // Mark messages as read when current user opens the chat
         const chatId = [currentUser.uid, userId].sort().join('_');
         for (const message of messagesList) {
           if (message.receiverId === currentUser.uid && !message.read) {
@@ -68,11 +85,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
             await updateDoc(messageRef, {
               delivered: true,
               read: true,
-            }).catch(() => {});
-          } else if (message.receiverId === currentUser.uid && !message.delivered) {
-            const messageRef = doc(db, 'chats', chatId, 'messages', message.id);
-            await updateDoc(messageRef, {
-              delivered: true,
             }).catch(() => {});
           }
         }
@@ -89,6 +101,30 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
 
     return () => unsubscribe();
   }, [currentUser, userId]);
+
+  // Mark messages as delivered when receiver comes online
+  useEffect(() => {
+    if (!currentUser || !userId || !isReceiverOnline) return;
+
+    const chatId = [currentUser.uid, userId].sort().join('_');
+    const messagesRef = collection(db, 'chats', chatId, 'messages');
+    
+    // Find undelivered messages sent by current user
+    const undeliveredQuery = query(
+      messagesRef,
+      where('senderId', '==', currentUser.uid),
+      where('delivered', '==', false)
+    );
+
+    onSnapshot(undeliveredQuery, async (snapshot) => {
+      for (const docSnap of snapshot.docs) {
+        const messageRef = doc(db, 'chats', chatId, 'messages', docSnap.id);
+        await updateDoc(messageRef, {
+          delivered: true,
+        }).catch(() => {});
+      }
+    });
+  }, [currentUser, userId, isReceiverOnline]);
 
   const handleSendMessage = async () => {
     if (!messageText.trim() || !currentUser || sending) return;

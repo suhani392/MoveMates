@@ -17,7 +17,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { authService } from '../services/authService';
 import { auth, db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 
 type WandererHomeScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -29,6 +29,23 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   const [menuVisible, setMenuVisible] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const { userData } = useAuth();
+
+  // Set user as online when component mounts
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    updateDoc(doc(db, 'users', user.uid), {
+      isOnline: true,
+    }).catch(() => {});
+
+    // Set offline when component unmounts
+    return () => {
+      updateDoc(doc(db, 'users', user.uid), {
+        isOnline: false,
+      }).catch(() => {});
+    };
+  }, []);
 
   // Listen for unread notifications
   useEffect(() => {
