@@ -20,6 +20,9 @@ import WalkerUpdatesScreen from '../screens/WalkerUpdatesScreen';
 import WandererDetailsScreen from '../screens/WandererDetailsScreen';
 import WandererUpdatesScreen from '../screens/WandererUpdatesScreen';
 import ChatScreen from '../screens/ChatScreen';
+import RemovedUserScreen from '../screens/RemovedUserScreen';
+import RemovedUsersScreen from '../screens/RemovedUsersScreen';
+import ProfilePhotoScreen from '../screens/ProfilePhotoScreen';
 
 const Stack = createStackNavigator();
 
@@ -39,9 +42,20 @@ const AuthNavigator: React.FC = () => {
     return null; // This will be handled by your main navigation
   }
 
-  // Determine initial route based on user role and approval status
+  // If user is removed, hard-route to the RemovedUser screen always
+  if ((userData as any).status === 'removed') {
+    return (
+      <Stack.Navigator
+        initialRouteName="RemovedUser"
+        screenOptions={{ headerShown: false }}
+      >
+        <Stack.Screen name="RemovedUser" component={RemovedUserScreen} />
+      </Stack.Navigator>
+    );
+  }
+
+  // Determine initial route based on role and approval status
   let initialRouteName = 'Home';
-  
   if (userData.role === 'admin') {
     initialRouteName = 'AdminDashboard';
   } else if (userData.role === 'walker') {
@@ -75,6 +89,9 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="WandererDetails" component={WandererDetailsScreen} />
       <Stack.Screen name="WandererUpdates" component={WandererUpdatesScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
+      <Stack.Screen name="RemovedUser" component={RemovedUserScreen} />
+      <Stack.Screen name="RemovedUsers" component={RemovedUsersScreen} />
+      <Stack.Screen name="ProfilePhoto" component={ProfilePhotoScreen} />
     </Stack.Navigator>
   );
 };
