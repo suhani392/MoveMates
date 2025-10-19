@@ -141,7 +141,7 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
         <Text style={styles.greeting}>Hello, {userData?.name || 'User Name'}!</Text>
 
         {/* Availability Toggle Card */}
-        <View style={styles.availabilityCard}>
+        <View style={[styles.availabilityCard, { backgroundColor: isAvailable ? '#E8F6E9' : '#F6E8E8' }]}>
           <View style={styles.availabilityContent}>
             <View style={styles.availabilityIconContainer}>
               <Ionicons 
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 35,
+    paddingTop: 15,
     paddingBottom: 10,
     zIndex: 10,
   },
@@ -452,7 +452,6 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   availabilityCard: {
-    backgroundColor: '#E8F6E9',
     borderRadius: 15,
     padding: 20,
     marginBottom: 20,

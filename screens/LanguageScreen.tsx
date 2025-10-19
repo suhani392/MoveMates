@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,16 +6,19 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 type LanguageScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
 interface Language {
-  code: string;
+  code: 'en' | 'hi';
   name: string;
   nativeName: string;
 }
@@ -23,38 +26,45 @@ interface Language {
 const languages: Language[] = [
   { code: 'en', name: 'English', nativeName: 'English' },
   { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी' },
-  { code: 'es', name: 'Spanish', nativeName: 'Español' },
-  { code: 'fr', name: 'French', nativeName: 'Français' },
-  { code: 'de', name: 'German', nativeName: 'Deutsch' },
-  { code: 'zh', name: 'Chinese', nativeName: '中文' },
-  { code: 'ja', name: 'Japanese', nativeName: '日本語' },
-  { code: 'ko', name: 'Korean', nativeName: '한국어' },
-  { code: 'ar', name: 'Arabic', nativeName: 'العربية' },
-  { code: 'pt', name: 'Portuguese', nativeName: 'Português' },
 ];
 
 const LanguageScreen: React.FC<LanguageScreenProps> = ({ navigation }) => {
-  const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const { language, setLanguage, t } = useLanguage();
+  const { colors } = useTheme();
+  const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'hi'>(language);
 
-  const handleLanguageSelect = (code: string) => {
+  useEffect(() => {
+    setSelectedLanguage(language);
+  }, [language]);
+
+  const handleLanguageSelect = (code: 'en' | 'hi') => {
     setSelectedLanguage(code);
-    // Here you would typically save to AsyncStorage or user preferences
+  };
+
+  const handleSave = async () => {
+    try {
+      await setLanguage(selectedLanguage);
+      Alert.alert(t('success'), t('languageUpdated'));
+      navigation.goBack();
+    } catch (error) {
+      Alert.alert(t('error'), 'Failed to update language');
+    }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={28} color="#000000" />
+            <MaterialIcons name="arrow-back" size={28} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Language</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('language')}</Text>
         </View>
 
         {/* Description */}
-        <Text style={styles.description}>
-          Select your preferred language for the app
+        <Text style={[styles.description, { color: colors.textSecondary }]}>
+          {t('selectLanguage')}
         </Text>
 
         {/* Language List */}
@@ -64,25 +74,26 @@ const LanguageScreen: React.FC<LanguageScreenProps> = ({ navigation }) => {
               key={language.code}
               style={[
                 styles.languageCard,
-                selectedLanguage === language.code && styles.selectedCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+                selectedLanguage === language.code && { borderColor: colors.success },
               ]}
               onPress={() => handleLanguageSelect(language.code)}
               activeOpacity={0.7}
             >
               <View style={styles.languageInfo}>
-                <Text style={styles.languageName}>{language.name}</Text>
-                <Text style={styles.languageNative}>{language.nativeName}</Text>
+                <Text style={[styles.languageName, { color: colors.text }]}>{language.name}</Text>
+                <Text style={[styles.languageNative, { color: colors.textSecondary }]}>{language.nativeName}</Text>
               </View>
               {selectedLanguage === language.code && (
-                <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
+                <MaterialIcons name="check-circle" size={24} color={colors.success} />
               )}
             </TouchableOpacity>
           ))}
         </View>
 
         {/* Save Button */}
-        <TouchableOpacity style={styles.saveButton} activeOpacity={0.8}>
-          <Text style={styles.saveButtonText}>Save Changes</Text>
+        <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.primary }]} activeOpacity={0.8} onPress={handleSave}>
+          <Text style={styles.saveButtonText}>{t('save')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -92,7 +103,6 @@ const LanguageScreen: React.FC<LanguageScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   scrollView: {
     flex: 1,

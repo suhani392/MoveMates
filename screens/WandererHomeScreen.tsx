@@ -5,23 +5,25 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   Modal,
+  SafeAreaView,
   Alert,
   Image,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
-import Constants from 'expo-constants';
-import * as Location from 'expo-location';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import Constants from 'expo-constants';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { authService } from '../services/authService';
-import { auth, db } from '../firebaseConfig';
+import { collection, getDocs, query, where, onSnapshot, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { db, auth } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
+import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
+import { authService } from '../services/authService';
 
 type WandererHomeScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -35,6 +37,10 @@ interface LocationSuggestion {
 }
 
 const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) => {
+  const { userData } = useAuth();
+  const { colors } = useTheme();
+  const { t } = useLanguage();
+
   const [pickup, setPickup] = useState('');
   const [destination, setDestination] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
@@ -51,7 +57,6 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
   const [recentLocations, setRecentLocations] = useState<string[]>([]);
   const mapRef = useRef<MapView>(null);
-  const { userData } = useAuth();
   const [pickupCoord, setPickupCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const [destinationCoord, setDestinationCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const [routeCoords, setRouteCoords] = useState<Array<{ latitude: number; longitude: number }>>([]);
@@ -83,18 +88,30 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
       }
       setLocationPermission(true);
 
-
       // Get current location
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
-      
+
       const coords = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       };
 
       setCurrentLocation(coords);
+
+      // Center map on user's location
+      if (mapRef.current) {
+        mapRef.current.animateToRegion(
+          {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          },
+          1000
+        );
+      }
 
       // Get address from coordinates
       const address = await reverseGeocode(coords.latitude, coords.longitude);
@@ -294,7 +311,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
         const location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });
-        
+
         const coords = {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -524,7 +541,6 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
     }
   };
 
-// ... (rest of the code remains the same)
   // Use current location for pickup
   const useCurrentLocationForPickup = () => {
     if (currentAddress) {
@@ -568,7 +584,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
       Alert.alert('Missing Information', 'Please enter a destination.');
       return;
     }
-    
+
     // Navigate to schedule screen with location data
     navigation.navigate('ScheduleDateTime', {
       pickup: pickup.trim(),
@@ -577,7 +593,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Map */}
       <MapView
         ref={mapRef}
@@ -589,16 +605,11 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
           longitudeDelta: 0.05,
         }}
         showsUserLocation={true}
-        showsMyLocationButton={true}
+        showsMyLocationButton={false}
         followsUserLocation={true}
+        toolbarEnabled={false}
+        showsCompass={false}
       >
-        {currentLocation && (
-          <Marker
-            coordinate={currentLocation}
-            title="You are here"
-            description="Your current location"
-          />
-        )}
         {pickupCoord && (
           <Marker coordinate={pickupCoord} title="Pickup" />
         )}
@@ -611,12 +622,12 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
       </MapView>
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.surface }]}>
         <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>
           <MaterialIcons name="menu" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.headerButton} 
+        <TouchableOpacity
+          style={styles.headerButton}
           onPress={() => navigation.navigate('Notifications')}
         >
           <MaterialIcons name="notifications" size={28} color="#FFFFFF" />
@@ -625,7 +636,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
       </View>
 
       {/* Walking Person Icon Circle */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.walkingIconCircle}
         onPress={() => navigation.navigate('WalkerUpdates')}
         activeOpacity={0.8}
@@ -653,7 +664,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
           <View style={styles.inputContainer}>
             <View style={styles.labelRow}>
               <Text style={styles.inputLabel}>Pickup</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.currentLocationButton}
                 onPress={useCurrentLocationForPickup}
               >
@@ -664,19 +675,30 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
             <View style={styles.inputWrapper}>
               <MaterialIcons name="my-location" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
                 value={pickup}
                 onChangeText={handlePickupChange}
-                placeholder="Enter pickup location"
-                placeholderTextColor="#999"
-                onFocus={() => {
-                  if (recentLocations.length > 0 && !pickup) {
-                    setShowPickupSuggestions(true);
-                  }
-                }}
+                placeholder={t('enterPickup')}
+                placeholderTextColor={colors.textSecondary}
               />
+              <TouchableOpacity
+                onPress={() => navigation.navigate('LocationSearch', {
+                  isPickup: true,
+                  currentLocation,
+                  recentLocations,
+                  onLocationSelect: (location: string, coords: { latitude: number; longitude: number }) => {
+                    setPickup(location);
+                    setPickupCoord(coords);
+                    if (destinationCoord && enableRoutingStep) {
+                      fetchRoute(coords, destinationCoord);
+                    }
+                  },
+                })}
+              >
+                <MaterialIcons name="search" size={24} color="#666" />
+              </TouchableOpacity>
             </View>
-            
+
             {/* Pickup Suggestions */}
             {showPickupSuggestions && (
               <View style={styles.suggestionsContainer}>
@@ -715,17 +737,30 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
             <View style={styles.inputWrapper}>
               <MaterialIcons name="place" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
                 value={destination}
                 onChangeText={handleDestinationChange}
-                placeholder="Enter destination"
-                placeholderTextColor="#999"
-                onFocus={() => {
-                  if (recentLocations.length > 0 && !destination) {
-                    setShowDestinationSuggestions(true);
-                  }
-                }}
+                placeholder={t('enterDestination')}
+                placeholderTextColor={colors.textSecondary}
               />
+              <TouchableOpacity
+                onPress={() => navigation.navigate('LocationSearch', {
+                  isPickup: false,
+                  currentLocation,
+                  recentLocations,
+                  onLocationSelect: (location: string, coords: { latitude: number; longitude: number }) => {
+                    setDestination(location);
+                    setDestinationCoord(coords);
+                    if (pickupCoord && enableRoutingStep) {
+                      fetchRoute(pickupCoord, coords);
+                    } else if (!pickupCoord && currentLocation) {
+                      setPickupCoord(currentLocation);
+                    }
+                  },
+                })}
+              >
+                <MaterialIcons name="search" size={24} color="#666" />
+              </TouchableOpacity>
             </View>
             
             {/* Destination Suggestions */}
@@ -900,7 +935,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 35,
+    paddingTop: 15,
     paddingBottom: 10,
     zIndex: 10,
   },

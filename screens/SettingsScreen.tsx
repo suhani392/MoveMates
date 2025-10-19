@@ -9,108 +9,113 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type SettingsScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
+  const { colors } = useTheme();
+  const { t } = useLanguage();
+  
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={28} color="#000000" />
+            <MaterialIcons name="arrow-back" size={28} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('settings')}</Text>
         </View>
 
         {/* General Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>General</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('general')}</Text>
           <TouchableOpacity 
-            style={[styles.card, styles.generalCard]}
+            style={[styles.card, styles.generalCard, { backgroundColor: colors.card }]}
             onPress={() => navigation.navigate('Language')}
           >
-            <Text style={styles.cardText}>Language</Text>
-            <MaterialIcons name="chevron-right" size={24} color="#000000" />
+            <Text style={[styles.cardText, { color: colors.text }]}>{t('language')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.card, styles.generalCard]}
+            style={[styles.card, styles.generalCard, { backgroundColor: colors.card }]}
             onPress={() => navigation.navigate('RoleChange')}
           >
-            <Text style={styles.cardText}>Role Change</Text>
-            <MaterialIcons name="chevron-right" size={24} color="#000000" />
+            <Text style={[styles.cardText, { color: colors.text }]}>{t('roleChange')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.card, styles.generalCard]}
+            style={[styles.card, styles.generalCard, { backgroundColor: colors.card }]}
             onPress={() => navigation.navigate('Preferences')}
           >
-            <Text style={styles.cardText}>Preferences</Text>
-            <MaterialIcons name="chevron-right" size={24} color="#000000" />
+            <Text style={[styles.cardText, { color: colors.text }]}>{t('preferences')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
         {/* Notifications Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Notifications</Text>
           <TouchableOpacity 
-            style={[styles.card, styles.notificationCard]}
+            style={[styles.card, styles.notificationCard, { backgroundColor: colors.card }]}
             onPress={() => navigation.navigate('PushNotifications')}
           >
-            <Text style={styles.cardText}>Push Notifications</Text>
-            <MaterialIcons name="chevron-right" size={24} color="#000000" />
+            <Text style={[styles.cardText, { color: colors.text }]}>{t('pushNotifications')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.card, styles.notificationCard]}
+            style={[styles.card, styles.notificationCard, { backgroundColor: colors.card }]}
             onPress={() => navigation.navigate('EmailNotifications')}
           >
-            <Text style={styles.cardText}>Email Notifications</Text>
-            <MaterialIcons name="chevron-right" size={24} color="#000000" />
+            <Text style={[styles.cardText, { color: colors.text }]}>{t('emailNotifications')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
         {/* Privacy Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Privacy</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('privacy')}</Text>
           <TouchableOpacity 
-            style={[styles.card, styles.privacyCard]}
+            style={[styles.card, styles.privacyCard, { backgroundColor: colors.card }]}
             onPress={() => navigation.navigate('LocationSharing')}
           >
-            <Text style={styles.cardText}>Location Sharing</Text>
-            <MaterialIcons name="chevron-right" size={24} color="#000000" />
+            <Text style={[styles.cardText, { color: colors.text }]}>{t('locationSharing')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.card, styles.privacyCard]}
+            style={[styles.card, styles.privacyCard, { backgroundColor: colors.card }]}
             onPress={() => navigation.navigate('ContactsSharing')}
           >
-            <Text style={styles.cardText}>Contacts Sharing</Text>
-            <MaterialIcons name="chevron-right" size={24} color="#000000" />
+            <Text style={[styles.cardText, { color: colors.text }]}>{t('contactsSharing')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.card, styles.privacyCard]}
+            style={[styles.card, styles.privacyCard, { backgroundColor: colors.card }]}
             onPress={() => navigation.navigate('DataUsage')}
           >
-            <Text style={styles.cardText}>Data Usage</Text>
-            <MaterialIcons name="chevron-right" size={24} color="#000000" />
+            <Text style={[styles.cardText, { color: colors.text }]}>{t('dataUsage')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
         {/* History Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>History</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('history')}</Text>
           <TouchableOpacity 
-            style={[styles.card, styles.historyCard]}
+            style={[styles.card, styles.historyCard, { backgroundColor: colors.card }]}
             onPress={() => navigation.navigate('WalkHistory')}
           >
-            <Text style={styles.cardText}>Walk History</Text>
-            <MaterialIcons name="chevron-right" size={24} color="#000000" />
+            <Text style={[styles.cardText, { color: colors.text }]}>{t('walkHistory')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -121,7 +126,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   scrollView: {
     flex: 1,

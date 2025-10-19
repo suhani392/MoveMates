@@ -11,7 +11,8 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, updateDoc } from 'firebase/firestore';
+import { useLanguage } from '../contexts/LanguageContext';
+import { doc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 type RoleChangeScreenProps = {
@@ -20,6 +21,7 @@ type RoleChangeScreenProps = {
 
 const RoleChangeScreen: React.FC<RoleChangeScreenProps> = ({ navigation }) => {
   const { userData } = useAuth();
+  const { t } = useLanguage();
   const [selectedRole, setSelectedRole] = useState(userData?.role || 'wanderer');
   const [loading, setLoading] = useState(false);
 
@@ -27,51 +29,74 @@ const RoleChangeScreen: React.FC<RoleChangeScreenProps> = ({ navigation }) => {
     if (!userData?.uid) return;
 
     if (selectedRole === userData.role) {
-      Alert.alert('No Change', 'You have selected the same role.');
+      Alert.alert(t('error'), selectedRole === 'walker' ? t('alreadyWalker') : t('alreadyWanderer'));
       return;
     }
 
-    Alert.alert(
-      'Confirm Role Change',
-      `Are you sure you want to change your role to ${selectedRole === 'walker' ? 'Walker' : 'Wanderer'}? ${
-        selectedRole === 'walker' ? 'Your account will need admin approval.' : ''
-      }`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: async () => {
-            setLoading(true);
-            try {
-              const userRef = doc(db, 'users', userData.uid);
-              const updateData: any = {
-                role: selectedRole,
-              };
+    // If changing from wanderer to walker, send request to admin
+    if (userData.role === 'wanderer' && selectedRole === 'walker') {
+      Alert.alert(
+        t('roleChangeRequest'),
+        t('roleChangeDesc'),
+        [
+          { text: t('cancel'), style: 'cancel' },
+          {
+            text: t('requestRoleChange'),
+            onPress: async () => {
+              setLoading(true);
+              try {
+                // Create role change request
+                await addDoc(collection(db, 'role_change_requests'), {
+                  userId: userData.uid,
+                  userName: userData.name,
+                  userEmail: userData.email,
+                  currentRole: 'wanderer',
+                  requestedRole: 'walker',
+                  status: 'pending',
+                  requestedAt: serverTimestamp(),
+                });
 
-              // If changing to walker, set approved to false
-              if (selectedRole === 'walker') {
-                updateData.approved = false;
+                Alert.alert(t('success'), t('requestSent'));
+                navigation.goBack();
+              } catch (error) {
+                console.error('Error sending request:', error);
+                Alert.alert(t('error'), 'Failed to send request');
+              } finally {
+                setLoading(false);
               }
-
-              await updateDoc(userRef, updateData);
-
-              Alert.alert(
-                'Success',
-                `Your role has been changed to ${selectedRole === 'walker' ? 'Walker' : 'Wanderer'}.${
-                  selectedRole === 'walker' ? ' Please wait for admin approval.' : ''
-                }`,
-                [{ text: 'OK', onPress: () => navigation.goBack() }]
-              );
-            } catch (error) {
-              console.error('Error changing role:', error);
-              Alert.alert('Error', 'Failed to change role. Please try again.');
-            } finally {
-              setLoading(false);
-            }
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    } else {
+      // For other role changes, update directly
+      Alert.alert(
+        'Confirm Role Change',
+        `Change role to ${selectedRole}?`,
+        [
+          { text: t('cancel'), style: 'cancel' },
+          {
+            text: 'Confirm',
+            onPress: async () => {
+              setLoading(true);
+              try {
+                await updateDoc(doc(db, 'users', userData.uid), {
+                  role: selectedRole,
+                });
+
+                Alert.alert(t('success'), 'Role changed successfully');
+                navigation.goBack();
+              } catch (error) {
+                console.error('Error changing role:', error);
+                Alert.alert(t('error'), 'Failed to change role');
+              } finally {
+                setLoading(false);
+              }
+            },
+          },
+        ]
+      );
+    }
   };
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,136 +7,139 @@ import {
   ScrollView,
   SafeAreaView,
   Switch,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
+import { auth, db } from '../firebaseConfig';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 
 type PreferencesScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
 const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ navigation }) => {
-  const [darkMode, setDarkMode] = useState(false);
-  const [autoAccept, setAutoAccept] = useState(false);
-  const [showOnlineStatus, setShowOnlineStatus] = useState(true);
+  const { toggleTheme, isDark, colors } = useTheme();
+  const { t } = useLanguage();
+  const [autoLocation, setAutoLocation] = useState(false);
   const [soundEffects, setSoundEffects] = useState(true);
   const [vibration, setVibration] = useState(true);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadPreferences();
+  }, []);
+
+  const loadPreferences = async () => {
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const prefs = userDoc.data()?.preferences || {};
+        setAutoLocation(prefs.autoLocation || false);
+        setSoundEffects(prefs.soundEffects !== false);
+        setVibration(prefs.vibration !== false);
+      }
+    } catch (error) {
+      console.error('Error loading preferences:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        await updateDoc(doc(db, 'users', user.uid), {
+          'preferences.darkMode': isDark,
+          'preferences.autoLocation': autoLocation,
+          'preferences.soundEffects': soundEffects,
+          'preferences.vibration': vibration,
+        });
+        Alert.alert(t('success'), t('settingsSaved'));
+        navigation.goBack();
+      }
+    } catch (error) {
+      Alert.alert(t('error'), 'Failed to save preferences');
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={28} color="#000000" />
+            <MaterialIcons name="arrow-back" size={28} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Preferences</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('preferences')}</Text>
         </View>
 
-        {/* Description */}
-        <Text style={styles.description}>
-          Customize your app experience
-        </Text>
-
+        {loading ? (
+          <ActivityIndicator size="large" color="#000" style={{ marginTop: 50 }} />
+        ) : (
+          <>
         {/* Appearance Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Appearance</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Appearance</Text>
           
-          <View style={styles.preferenceCard}>
+          <View style={[styles.preferenceCard, { backgroundColor: colors.card }]}>
             <View style={styles.preferenceInfo}>
-              <MaterialIcons name="brightness-6" size={24} color="#5B21B6" />
+              <MaterialIcons name="brightness-6" size={24} color={colors.primary} />
               <View style={styles.preferenceText}>
-                <Text style={styles.preferenceName}>Dark Mode</Text>
-                <Text style={styles.preferenceDescription}>
-                  Enable dark theme for the app
+                <Text style={[styles.preferenceName, { color: colors.text }]}>{t('darkMode')}</Text>
+                <Text style={[styles.preferenceDescription, { color: colors.textSecondary }]}>
+                  {t('darkModeDesc')}
                 </Text>
               </View>
             </View>
             <Switch
-              value={darkMode}
-              onValueChange={setDarkMode}
+              value={isDark}
+              onValueChange={toggleTheme}
               trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-              thumbColor={darkMode ? '#22C55E' : '#F3F4F6'}
+              thumbColor={isDark ? '#22C55E' : '#F3F4F6'}
             />
           </View>
         </View>
 
         {/* Behavior Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Behavior</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Behavior</Text>
           
-          <View style={styles.preferenceCard}>
+          <View style={[styles.preferenceCard, { backgroundColor: colors.card }]}>
             <View style={styles.preferenceInfo}>
-              <MaterialIcons name="check-circle" size={24} color="#059669" />
+              <MaterialIcons name="location-on" size={24} color={colors.success} />
               <View style={styles.preferenceText}>
-                <Text style={styles.preferenceName}>Auto Accept Requests</Text>
-                <Text style={styles.preferenceDescription}>
-                  Automatically accept walk requests (Walker only)
+                <Text style={[styles.preferenceName, { color: colors.text }]}>{t('autoLocation')}</Text>
+                <Text style={[styles.preferenceDescription, { color: colors.textSecondary }]}>
+                  {t('autoLocationDesc')}
                 </Text>
               </View>
             </View>
             <Switch
-              value={autoAccept}
-              onValueChange={setAutoAccept}
+              value={autoLocation}
+              onValueChange={setAutoLocation}
               trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-              thumbColor={autoAccept ? '#22C55E' : '#F3F4F6'}
-            />
-          </View>
-
-          <View style={styles.preferenceCard}>
-            <View style={styles.preferenceInfo}>
-              <MaterialIcons name="refresh" size={24} color="#3B82F6" />
-              <View style={styles.preferenceText}>
-                <Text style={styles.preferenceName}>Auto Refresh</Text>
-                <Text style={styles.preferenceDescription}>
-                  Automatically refresh updates
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={autoRefresh}
-              onValueChange={setAutoRefresh}
-              trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-              thumbColor={autoRefresh ? '#22C55E' : '#F3F4F6'}
-            />
-          </View>
-        </View>
-
-        {/* Privacy Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Privacy</Text>
-          
-          <View style={styles.preferenceCard}>
-            <View style={styles.preferenceInfo}>
-              <MaterialIcons name="visibility" size={24} color="#6366F1" />
-              <View style={styles.preferenceText}>
-                <Text style={styles.preferenceName}>Show Online Status</Text>
-                <Text style={styles.preferenceDescription}>
-                  Let others see when you're online
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={showOnlineStatus}
-              onValueChange={setShowOnlineStatus}
-              trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-              thumbColor={showOnlineStatus ? '#22C55E' : '#F3F4F6'}
+              thumbColor={autoLocation ? '#22C55E' : '#F3F4F6'}
             />
           </View>
         </View>
 
         {/* Feedback Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Feedback</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Feedback</Text>
           
-          <View style={styles.preferenceCard}>
+          <View style={[styles.preferenceCard, { backgroundColor: colors.card }]}>
             <View style={styles.preferenceInfo}>
-              <MaterialIcons name="volume-up" size={24} color="#F59E0B" />
+              <MaterialIcons name="volume-up" size={24} color={colors.warning} />
               <View style={styles.preferenceText}>
-                <Text style={styles.preferenceName}>Sound Effects</Text>
-                <Text style={styles.preferenceDescription}>
-                  Play sounds for notifications
+                <Text style={[styles.preferenceName, { color: colors.text }]}>{t('soundEffects')}</Text>
+                <Text style={[styles.preferenceDescription, { color: colors.textSecondary }]}>
+                  {t('soundEffectsDesc')}
                 </Text>
               </View>
             </View>
@@ -148,12 +151,12 @@ const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ navigation }) => 
             />
           </View>
 
-          <View style={styles.preferenceCard}>
+          <View style={[styles.preferenceCard, { backgroundColor: colors.card }]}>
             <View style={styles.preferenceInfo}>
-              <MaterialIcons name="vibration" size={24} color="#EC4899" />
+              <MaterialIcons name="vibration" size={24} color={colors.warning} />
               <View style={styles.preferenceText}>
-                <Text style={styles.preferenceName}>Vibration</Text>
-                <Text style={styles.preferenceDescription}>
+                <Text style={[styles.preferenceName, { color: colors.text }]}>Vibration</Text>
+                <Text style={[styles.preferenceDescription, { color: colors.textSecondary }]}>
                   Vibrate for notifications
                 </Text>
               </View>
@@ -168,9 +171,11 @@ const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ navigation }) => 
         </View>
 
         {/* Save Button */}
-        <TouchableOpacity style={styles.saveButton} activeOpacity={0.8}>
-          <Text style={styles.saveButtonText}>Save Preferences</Text>
+        <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.primary }]} activeOpacity={0.8} onPress={handleSave}>
+          <Text style={styles.saveButtonText}>{t('save')}</Text>
         </TouchableOpacity>
+        </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -179,7 +184,6 @@ const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ navigation }) => 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   scrollView: {
     flex: 1,

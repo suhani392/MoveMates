@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { collection, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+
+const { width } = Dimensions.get('window');
 
 const daysAgo = (n: number) => {
   const d = new Date();
@@ -86,6 +88,32 @@ const AnalyticsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const approvalsTotalInRange = useMemo(() => Object.values(approvalsByDay).reduce((a, b) => a + b, 0), [approvalsByDay]);
 
+  const dailySignups = useMemo(() => {
+    const map: Record<string, number> = {};
+    users.forEach(u => {
+      const c = asDate(u.createdAt);
+      if (!c || c < rangeStart) return;
+      const key = formatDay(c);
+      map[key] = (map[key] || 0) + 1;
+    });
+    return map;
+  }, [users, rangeStart]);
+
+  const roleDistribution = useMemo(() => {
+    const walker = users.filter(u => u.role === 'walker' && u.status !== 'removed').length;
+    const wanderer = users.filter(u => u.role === 'wanderer' && u.status !== 'removed').length;
+    const admin = users.filter(u => u.role === 'admin' && u.status !== 'removed').length;
+    const total = walker + wanderer + admin;
+    return { walker, wanderer, admin, total };
+  }, [users]);
+
+  const approvalStats = useMemo(() => {
+    const walkers = users.filter(u => u.role === 'walker' && u.status !== 'removed');
+    const approved = walkers.filter(u => u.approved).length;
+    const pending = walkers.filter(u => !u.approved).length;
+    return { approved, pending, total: walkers.length };
+  }, [users]);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -133,8 +161,95 @@ const AnalyticsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               </View>
             </View>
 
+            {/* Role Distribution Pie Chart */}
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Approvals per day</Text>
+              <Text style={styles.cardTitle}>User Distribution by Role</Text>
+              <View style={styles.pieChartContainer}>
+                {roleDistribution.total > 0 ? (
+                  <>
+                    <View style={styles.pieSegmentsRow}>
+                      {roleDistribution.walker > 0 && (
+                        <View style={[styles.pieSegment, { flex: roleDistribution.walker, backgroundColor: '#4CAF50' }]} />
+                      )}
+                      {roleDistribution.wanderer > 0 && (
+                        <View style={[styles.pieSegment, { flex: roleDistribution.wanderer, backgroundColor: '#FF9800' }]} />
+                      )}
+                      {roleDistribution.admin > 0 && (
+                        <View style={[styles.pieSegment, { flex: roleDistribution.admin, backgroundColor: '#9C27B0' }]} />
+                      )}
+                    </View>
+                    <View style={styles.pieLegend}>
+                      <View style={styles.legendItem}>
+                        <View style={[styles.legendColor, { backgroundColor: '#4CAF50' }]} />
+                        <Text style={styles.legendText}>Walkers: {roleDistribution.walker} ({Math.round(roleDistribution.walker / roleDistribution.total * 100)}%)</Text>
+                      </View>
+                      <View style={styles.legendItem}>
+                        <View style={[styles.legendColor, { backgroundColor: '#FF9800' }]} />
+                        <Text style={styles.legendText}>Wanderers: {roleDistribution.wanderer} ({Math.round(roleDistribution.wanderer / roleDistribution.total * 100)}%)</Text>
+                      </View>
+                      <View style={styles.legendItem}>
+                        <View style={[styles.legendColor, { backgroundColor: '#9C27B0' }]} />
+                        <Text style={styles.legendText}>Admins: {roleDistribution.admin} ({Math.round(roleDistribution.admin / roleDistribution.total * 100)}%)</Text>
+                      </View>
+                    </View>
+                  </>
+                ) : (
+                  <Text style={styles.subtle}>No users found</Text>
+                )}
+              </View>
+            </View>
+
+            {/* Walker Approval Status */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Walker Approval Status</Text>
+              <View style={styles.approvalBarsContainer}>
+                <View style={styles.approvalBarRow}>
+                  <Text style={styles.approvalLabel}>Approved</Text>
+                  <View style={styles.approvalBarBg}>
+                    <View style={[styles.approvalBarFill, { width: `${approvalStats.total > 0 ? (approvalStats.approved / approvalStats.total * 100) : 0}%`, backgroundColor: '#4CAF50' }]} />
+                  </View>
+                  <Text style={styles.approvalValue}>{approvalStats.approved}</Text>
+                </View>
+                <View style={styles.approvalBarRow}>
+                  <Text style={styles.approvalLabel}>Pending</Text>
+                  <View style={styles.approvalBarBg}>
+                    <View style={[styles.approvalBarFill, { width: `${approvalStats.total > 0 ? (approvalStats.pending / approvalStats.total * 100) : 0}%`, backgroundColor: '#FF9800' }]} />
+                  </View>
+                  <Text style={styles.approvalValue}>{approvalStats.pending}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Daily Signups Bar Chart */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Daily Signups (Last {rangeDays} days)</Text>
+              {Object.keys(dailySignups).length === 0 ? (
+                <Text style={styles.subtle}>No signups in range</Text>
+              ) : (
+                <View style={styles.barChartContainer}>
+                  <View style={styles.barsRow}>
+                    {Object.entries(dailySignups).sort(([a],[b]) => a.localeCompare(b)).map(([day, count]) => {
+                      const maxCount = Math.max(...Object.values(dailySignups), 1);
+                      const heightPercent = (count / maxCount) * 100;
+                      return (
+                        <View key={day} style={styles.barColumnSmall}>
+                          <View style={styles.barWrapperSmall}>
+                            <View style={[styles.barSmall, { height: `${heightPercent}%` }]}>
+                              <Text style={styles.barLabelSmall}>{count}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.barDateSmall}>{day.slice(5)}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* Approvals per day */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Walker Approvals per Day</Text>
               {Object.keys(approvalsByDay).length === 0 ? (
                 <Text style={styles.subtle}>No approvals in range</Text>
               ) : (
@@ -146,8 +261,6 @@ const AnalyticsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 ))
               )}
             </View>
-
-            {/* CSV export can be added on selected tables later */}
           </>
         )}
       </ScrollView>
@@ -172,12 +285,32 @@ const styles = StyleSheet.create({
   kpiTitle: { color: '#000', fontWeight: '800' },
   kpiValue: { color: '#000', marginTop: 6 },
   kpiBig: { color: '#000', marginTop: 6, fontSize: 24, fontWeight: '900' },
-  card: { backgroundColor: '#F5F5F5', borderRadius: 12, padding: 12 },
+  card: { backgroundColor: '#F5F5F5', borderRadius: 12, padding: 12, marginBottom: 16 },
   cardTitle: { color: '#000', fontWeight: '800', marginBottom: 8 },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   rowLabel: { color: '#333', fontWeight: '600' },
   rowValue: { color: '#000' },
   subtle: { color: '#666' },
+  pieChartContainer: { marginTop: 12 },
+  pieSegmentsRow: { flexDirection: 'row', height: 30, borderRadius: 15, overflow: 'hidden', marginBottom: 16 },
+  pieSegment: { height: '100%' },
+  pieLegend: { gap: 8 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  legendColor: { width: 16, height: 16, borderRadius: 4, marginRight: 8 },
+  legendText: { color: '#333', fontSize: 13 },
+  approvalBarsContainer: { marginTop: 12, gap: 12 },
+  approvalBarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  approvalLabel: { width: 70, color: '#333', fontWeight: '600', fontSize: 13 },
+  approvalBarBg: { flex: 1, height: 24, backgroundColor: '#E0E0E0', borderRadius: 12, overflow: 'hidden' },
+  approvalBarFill: { height: '100%', borderRadius: 12 },
+  approvalValue: { width: 40, textAlign: 'right', color: '#000', fontWeight: '700' },
+  barChartContainer: { marginTop: 12 },
+  barsRow: { flexDirection: 'row', height: 150, alignItems: 'flex-end', gap: 4 },
+  barColumnSmall: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  barWrapperSmall: { width: '100%', height: '100%', justifyContent: 'flex-end', alignItems: 'center' },
+  barSmall: { width: '80%', backgroundColor: '#3B82F6', borderTopLeftRadius: 4, borderTopRightRadius: 4, justifyContent: 'flex-start', alignItems: 'center', paddingTop: 2, minHeight: 15 },
+  barLabelSmall: { fontSize: 9, fontWeight: '600', color: '#FFFFFF' },
+  barDateSmall: { fontSize: 9, color: '#666', marginTop: 4, textAlign: 'center' },
 });
 
 export default AnalyticsScreen;

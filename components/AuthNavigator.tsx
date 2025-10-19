@@ -40,6 +40,7 @@ import TermsConditionsScreen from '../screens/TermsConditionsScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import AuditLogsScreen from '../screens/AuditLogsScreen';
+import LocationSearchScreen from '../screens/LocationSearchScreen';
 
 const Stack = createStackNavigator();
 
@@ -126,6 +127,7 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} />
       <Stack.Screen name="AuditLogs" component={AuditLogsScreen} />
+      <Stack.Screen name="LocationSearch" component={LocationSearchScreen} />
     </Stack.Navigator>
   );
 };

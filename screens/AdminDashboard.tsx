@@ -64,9 +64,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
   const [lastTapTime, setLastTapTime] = useState<number>(0);
   const [lastTappedUserId, setLastTappedUserId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [dailyActiveUsers, setDailyActiveUsers] = useState<{ date: string; count: number }[]>([]);
 
   useEffect(() => {
     fetchUsers();
+    fetchDailyActiveUsers();
   }, []);
 
   // No manual fetch for current admin profile; we rely on useAuth()
@@ -97,8 +99,47 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
     try {
       setRefreshing(true);
       await fetchUsers();
+      await fetchDailyActiveUsers();
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const fetchDailyActiveUsers = async () => {
+    try {
+      // Get last 7 days of data
+      const days = 7;
+      const data: { date: string; count: number }[] = [];
+      const today = new Date();
+      
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        date.setHours(0, 0, 0, 0);
+        
+        const nextDate = new Date(date);
+        nextDate.setDate(nextDate.getDate() + 1);
+        
+        // Query users who were active on this day
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        let count = 0;
+        
+        usersSnapshot.docs.forEach(doc => {
+          const userData = doc.data();
+          const lastActive = userData.lastLocationUpdate?.toDate?.() || userData.createdAt?.toDate?.();
+          
+          if (lastActive && lastActive >= date && lastActive < nextDate) {
+            count++;
+          }
+        });
+        
+        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        data.push({ date: dateStr, count });
+      }
+      
+      setDailyActiveUsers(data);
+    } catch (error) {
+      console.error('Error fetching daily active users:', error);
     }
   };
 
@@ -248,6 +289,75 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
           />
         }
       >
+        {/* Analytics Graph */}
+        <View style={styles.analyticsSection}>
+          <Text style={styles.analyticsSectionTitle}>Daily Active Users</Text>
+          <View style={styles.graphCard}>
+            <View style={styles.graphContainer}>
+              {dailyActiveUsers.length > 0 ? (
+                <>
+                  {/* Y-axis labels */}
+                  <View style={styles.yAxisContainer}>
+                    {[...Array(5)].map((_, i) => {
+                      const maxCount = Math.max(...dailyActiveUsers.map(d => d.count), 10);
+                      const value = Math.ceil(maxCount * (4 - i) / 4);
+                      return (
+                        <Text key={i} style={styles.yAxisLabel}>
+                          {value}
+                        </Text>
+                      );
+                    })}
+                  </View>
+                  
+                  {/* Graph bars */}
+                  <View style={styles.barsContainer}>
+                    {dailyActiveUsers.map((day, index) => {
+                      const maxCount = Math.max(...dailyActiveUsers.map(d => d.count), 10);
+                      const heightPercentage = (day.count / maxCount) * 100;
+                      
+                      return (
+                        <View key={index} style={styles.barColumn}>
+                          <View style={styles.barWrapper}>
+                            <View
+                              style={[
+                                styles.bar,
+                                { height: `${heightPercentage}%` },
+                              ]}
+                            >
+                              <Text style={styles.barLabel}>{day.count}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.xAxisLabel}>{day.date}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : (
+                <View style={styles.graphPlaceholder}>
+                  <Text style={styles.graphPlaceholderText}>Loading analytics...</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          
+          {/* Stats Summary */}
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{users.length}</Text>
+              <Text style={styles.statLabel}>Total Users</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{walkers.length}</Text>
+              <Text style={styles.statLabel}>Walkers</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{wanderers.length}</Text>
+              <Text style={styles.statLabel}>Wanderers</Text>
+            </View>
+          </View>
+        </View>
+
         <Text style={styles.sectionTitle}>User Management</Text>
         <View style={styles.searchRow}>
           <TextInput
@@ -543,54 +653,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
-                // navigation.navigate('ContactUs');
-                navigation.navigate('ContactUs');
-              }}
-            >
-              <Text style={styles.drawerText}>Contact Us</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-                // navigation.navigate('HelpPolicy');
-                navigation.navigate('HelpPolicy');
-              }}
-            >
-              <Text style={styles.drawerText}>Help & Policy</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-                // navigation.navigate('Settings');
-                navigation.navigate('Settings');
-              }}
-            >
-              <Text style={styles.drawerText}>Settings</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-                // navigation.navigate('About');
-                navigation.navigate('About');
-              }}
-            >
-              <Text style={styles.drawerText}>About</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
                 navigation.navigate('RemovedUsers');
               }}
             >
               <Text style={styles.drawerText}>Removed Users</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('AuditLogs');
+              }}
+            >
+              <Text style={styles.drawerText}>Audit Logs</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
@@ -607,10 +683,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
-                navigation.navigate('AuditLogs');
+                navigation.navigate('ContactUs');
               }}
             >
-              <Text style={styles.drawerText}>Audit Logs</Text>
+              <Text style={styles.drawerText}>Contact Us</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('HelpPolicy');
+              }}
+            >
+              <Text style={styles.drawerText}>Help & Policy</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('Settings');
+              }}
+            >
+              <Text style={styles.drawerText}>Settings</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('About');
+              }}
+            >
+              <Text style={styles.drawerText}>About</Text>
             </TouchableOpacity>
 
             {/* Logout */}
@@ -708,7 +814,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 35,
+    paddingTop: 15,
     paddingBottom: 10,
     zIndex: 10,
   },
@@ -905,6 +1011,118 @@ const styles = StyleSheet.create({
   moreDetails: {
     color: '#1E88E5',
     fontWeight: '700',
+  },
+  // Analytics Section
+  analyticsSection: {
+    marginTop: 20,
+    marginBottom: 30,
+  },
+  analyticsSectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#000000',
+    marginBottom: 15,
+  },
+  graphCard: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  graphContainer: {
+    flexDirection: 'row',
+    height: 200,
+    marginBottom: 10,
+  },
+  yAxisContainer: {
+    width: 30,
+    justifyContent: 'space-between',
+    paddingRight: 5,
+  },
+  yAxisLabel: {
+    fontSize: 10,
+    color: '#666',
+    textAlign: 'right',
+  },
+  barsContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'flex-end',
+  },
+  barColumn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  barWrapper: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  bar: {
+    width: '70%',
+    backgroundColor: '#3B82F6',
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: 4,
+    minHeight: 20,
+  },
+  barLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  xAxisLabel: {
+    fontSize: 10,
+    color: '#666',
+    marginTop: 5,
+    textAlign: 'center',
+  },
+  graphPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  graphPlaceholderText: {
+    fontSize: 14,
+    color: '#999',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 15,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#3B82F6',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
   },
   // Drawer
   overlay: {
