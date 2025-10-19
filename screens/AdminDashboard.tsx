@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, SafeAreaView, Modal, Image, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, SafeAreaView, Modal, Image, TextInput, RefreshControl } from 'react-native';
+
 import { StackNavigationProp } from '@react-navigation/stack';
-import { collection, getDocs, doc, updateDoc, getDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, getDoc, serverTimestamp, query, where, onSnapshot, addDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, getDownloadURL } from 'firebase/storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { db, auth } from '../firebaseConfig';
@@ -62,6 +63,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
   const [tapCount, setTapCount] = useState(0);
   const [lastTapTime, setLastTapTime] = useState<number>(0);
   const [lastTappedUserId, setLastTappedUserId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -88,6 +90,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
       Alert.alert('Error', 'Failed to fetch users');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await fetchUsers();
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -125,6 +136,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
       await updateDoc(doc(db, 'users', userId), { approved });
       Alert.alert('Success', `Walker ${approved ? 'approved' : 'rejected'}`);
       setDecisions(prev => ({ ...prev, [userId]: approved ? 'approved' : 'rejected' }));
+      try {
+        await addDoc(collection(db, 'audit_logs'), {
+          actorId: auth.currentUser?.uid || 'admin',
+          action: approved ? 'user.approve' : 'user.reject',
+          targetType: 'user',
+          targetId: userId,
+          timestamp: serverTimestamp(),
+        });
+      } catch (e) { /* ignore audit log failures */ }
       fetchUsers(); // Refresh the list
     } catch (error) {
       Alert.alert('Error', 'Failed to update user');
@@ -169,7 +189,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
       } catch (e) {
         // fallthrough: will show alert below
       }
-      if (photo && (photo.startsWith('http://') || photo.startsWith('https://'))) {
+      if (photo && typeof photo === 'string') {
+        // Accept http(s), data URLs, and any resolvable string
         navigation.navigate('ProfilePhoto', { name: (user as any).name || 'User', photoUrl: photo });
       } else {
         Alert.alert('No photo', 'This user has not set a profile photo.');
@@ -216,7 +237,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView
+        style={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#3B82F6"]}
+            tintColor="#3B82F6"
+          />
+        }
+      >
         <Text style={styles.sectionTitle}>User Management</Text>
         <View style={styles.searchRow}>
           <TextInput
@@ -358,6 +389,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
             )}
+            <View style={{ alignItems: 'flex-end', marginTop: 8 }}>
+              <TouchableOpacity onPress={() => navigation.navigate('UserDetails', { userId: user.id, role: user.role })}>
+                <Text style={styles.moreDetails}>more details</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           </TouchableOpacity>
         ))}
@@ -374,6 +410,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
           <TouchableOpacity
             key={user.id}
             activeOpacity={0.9}
+            onPress={() => handleCardTap(user)}
             onLongPress={() => {
               setSelectedUserForRemoval(user);
               setRemovalReason('');
@@ -401,6 +438,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
             <Text style={styles.userStatus}>
               Status: {user.approved ? 'Approved' : 'Pending'}
             </Text>
+            <View style={{ alignItems: 'flex-end', marginTop: 8 }}>
+              <TouchableOpacity onPress={() => navigation.navigate('UserDetails', { userId: user.id, role: user.role })}>
+                <Text style={styles.moreDetails}>more details</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           </TouchableOpacity>
         ))}
@@ -551,6 +593,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
               <Text style={styles.drawerText}>Removed Users</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('Analytics');
+              }}
+            >
+              <Text style={styles.drawerText}>Analytics</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
+                navigation.navigate('AuditLogs');
+              }}
+            >
+              <Text style={styles.drawerText}>Audit Logs</Text>
+            </TouchableOpacity>
+
             {/* Logout */}
             <TouchableOpacity 
               style={[styles.drawerItem, styles.logoutItem]} 
@@ -598,6 +660,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
                       removedAt: serverTimestamp(),
                       removedBy: (auth.currentUser && auth.currentUser.uid) || 'admin',
                     });
+                    try {
+                      await addDoc(collection(db, 'audit_logs'), {
+                        actorId: auth.currentUser?.uid || 'admin',
+                        action: 'user.remove',
+                        targetType: 'user',
+                        targetId: selectedUserForRemoval.id,
+                        timestamp: serverTimestamp(),
+                        reason: removalReason || 'No reason specified',
+                        prev: { status: (selectedUserForRemoval as any).status || 'active' },
+                        next: { status: 'removed' },
+                      });
+                    } catch (e) { /* ignore audit log failures */ }
                     setRemovalModalVisible(false);
                     setSelectedUserForRemoval(null);
                     setRemovalReason('');
@@ -827,6 +901,10 @@ const styles = StyleSheet.create({
     color: '#FFF',
     textAlign: 'center',
     fontWeight: '600',
+  },
+  moreDetails: {
+    color: '#1E88E5',
+    fontWeight: '700',
   },
   // Drawer
   overlay: {

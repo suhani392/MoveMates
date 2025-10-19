@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 // @ts-ignore - getReactNativePersistence exists but may not be in type definitions
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { initializeFirestore, memoryLocalCache, Firestore } from 'firebase/firestore';
 import { getDatabase, Database } from 'firebase/database';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,6 +27,8 @@ const auth = initializeAuth(app, {
 });
 
 export { auth };
-export const db: Firestore = getFirestore(app);
+export const db: Firestore = initializeFirestore(app, {
+  localCache: memoryLocalCache(),
+});
 export const database: Database = getDatabase(app);
 export const storage: FirebaseStorage = getStorage(app);

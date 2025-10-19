@@ -7,13 +7,14 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   Modal,
   Alert,
   Image,
   ScrollView,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import MapView, { Marker, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
+import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -29,6 +30,8 @@ type WandererHomeScreenProps = {
 interface LocationSuggestion {
   description: string;
   placeId?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) => {
@@ -49,6 +52,26 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   const [recentLocations, setRecentLocations] = useState<string[]>([]);
   const mapRef = useRef<MapView>(null);
   const { userData } = useAuth();
+  const [pickupCoord, setPickupCoord] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [destinationCoord, setDestinationCoord] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [routeCoords, setRouteCoords] = useState<Array<{ latitude: number; longitude: number }>>([]);
+  const [directionsLoading, setDirectionsLoading] = useState(false);
+  const enableRoutingStep = true;
+  const pickupDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const destDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const [routeDistance, setRouteDistance] = useState<number | null>(null);
+  const [routeDuration, setRouteDuration] = useState<number | null>(null);
+
+  // When both coordinates are available, auto-fetch route (step is enabled)
+  useEffect(() => {
+    if (enableRoutingStep && pickupCoord && destinationCoord) {
+      fetchRoute(pickupCoord, destinationCoord);
+    } else {
+      setRouteCoords([]);
+      setRouteDistance(null);
+      setRouteDuration(null);
+    }
+  }, [enableRoutingStep, pickupCoord, destinationCoord]);
 
   // Request location permission and get current location
   useEffect(() => {
@@ -60,6 +83,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
       }
       setLocationPermission(true);
 
+
       // Get current location
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
@@ -69,6 +93,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       };
+
       setCurrentLocation(coords);
 
       // Get address from coordinates
@@ -85,6 +110,163 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
       }
     })();
   }, []);
+
+  // Recenter map to user location and optionally set pickup
+  const recenterToUser = () => {
+    if (!currentLocation || !mapRef.current) {
+      Alert.alert('Location Unavailable', 'Enable location services to use this feature.');
+      return;
+    }
+    mapRef.current.animateToRegion(
+      {
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      },
+      500
+    );
+    if (!pickupCoord) {
+      setPickupCoord(currentLocation);
+      if (destinationCoord && enableRoutingStep) {
+        fetchRoute(currentLocation, destinationCoord);
+      }
+    }
+  };
+
+  // Free-stack helpers (component scope)
+  const geocodeText = async (text: string): Promise<{ latitude: number; longitude: number }> => {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&limit=1`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'MoveMates/1.0 (contact@movemates.app)' },
+    });
+    const data = await res.json();
+    const item = Array.isArray(data) && data[0];
+    const lat = item ? parseFloat(item.lat) : NaN;
+    const lon = item ? parseFloat(item.lon) : NaN;
+    if (!isNaN(lat) && !isNaN(lon)) {
+      return { latitude: lat, longitude: lon };
+    }
+    throw new Error('no geocode');
+  };
+
+  const decodePolyline = (encoded: string): Array<{ latitude: number; longitude: number }> => {
+    let index = 0, lat = 0, lng = 0;
+    const coordinates: Array<{ latitude: number; longitude: number }> = [];
+    while (index < encoded.length) {
+      let b = 0, shift = 0, result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
+      lat += dlat;
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
+      lng += dlng;
+      coordinates.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+    }
+    return coordinates;
+  };
+
+  const fitMapToPoints = (
+    a: { latitude: number; longitude: number },
+    b: { latitude: number; longitude: number },
+    path: Array<{ latitude: number; longitude: number }> = []
+  ) => {
+    const points = path.length > 1 ? path : [a, b];
+    if (mapRef.current && points.length) {
+      mapRef.current.fitToCoordinates(points, {
+        edgePadding: { top: 80, bottom: 360, left: 40, right: 40 },
+        animated: true,
+      });
+    }
+  };
+
+  const fetchRoute = async (
+    origin: { latitude: number; longitude: number },
+    dest: { latitude: number; longitude: number }
+  ) => {
+    setDirectionsLoading(true);
+    try {
+      const extra: any = (Constants as any)?.expoConfig?.extra || (Constants as any)?.manifest?.extra || {};
+      const orsKey: string | undefined = extra?.ORS_API_KEY || extra?.orsApiKey;
+
+      if (orsKey) {
+        console.log('Routing via ORS');
+        const body = {
+          coordinates: [
+            [origin.longitude, origin.latitude],
+            [dest.longitude, dest.latitude],
+          ],
+        };
+        const orsRes = await fetch('https://api.openrouteservice.org/v2/directions/foot-walking', {
+          method: 'POST',
+          headers: {
+            'Authorization': orsKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+        if (orsRes.ok) {
+          const orsData = await orsRes.json();
+          const feature = Array.isArray(orsData?.features) ? orsData.features[0] : undefined;
+          const summary = feature?.properties?.summary;
+          const geom = feature?.geometry;
+          let coords: Array<{ latitude: number; longitude: number }> = [];
+          if (geom?.type === 'LineString' && Array.isArray(geom.coordinates)) {
+            coords = geom.coordinates.map((c: any) => ({ latitude: c[1], longitude: c[0] }));
+          } else if (typeof geom === 'string') {
+            coords = decodePolyline(geom as string);
+          }
+          if (coords.length > 1) {
+            setRouteCoords(coords);
+            setRouteDistance(typeof summary?.distance === 'number' ? summary.distance : null);
+            setRouteDuration(typeof summary?.duration === 'number' ? summary.duration : null);
+            fitMapToPoints(origin, dest, coords);
+            return;
+          }
+        }
+      }
+
+      console.log('Routing via OSRM fallback');
+      const url = `https://router.project-osrm.org/route/v1/foot/${origin.longitude},${origin.latitude};${dest.longitude},${dest.latitude}?overview=full&geometries=polyline&alternatives=false`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data?.code && data.code !== 'Ok') {
+        setRouteCoords([]);
+        setRouteDistance(null);
+        setRouteDuration(null);
+        return;
+      }
+      const route = data?.routes?.[0];
+      const points = route?.geometry;
+      if (points) {
+        const coords = decodePolyline(points);
+        setRouteCoords(coords);
+        setRouteDistance(typeof route.distance === 'number' ? route.distance : null);
+        setRouteDuration(typeof route.duration === 'number' ? route.duration : null);
+        fitMapToPoints(origin, dest, coords);
+      } else {
+        setRouteCoords([]);
+        setRouteDistance(null);
+        setRouteDuration(null);
+      }
+    } catch (e) {
+      setRouteCoords([]);
+      setRouteDistance(null);
+      setRouteDuration(null);
+    } finally {
+      setDirectionsLoading(false);
+    }
+  };
 
   // Set user as online when component mounts
   useEffect(() => {
@@ -173,12 +355,12 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   // Reverse geocode to get address from coordinates
   const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
     try {
-      const results = await Location.reverseGeocodeAsync({ latitude, longitude });
-      if (results.length > 0) {
-        const result = results[0];
-        return `${result.street || ''}, ${result.city || ''}, ${result.region || ''}`;
-      }
-      return 'Current Location';
+      const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'MoveMates/1.0 (contact@movemates.app)' },
+      });
+      const data = await res.json();
+      return data?.display_name || 'Current Location';
     } catch (error) {
       console.error('Reverse geocode error:', error);
       return 'Current Location';
@@ -199,25 +381,58 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
     }
 
     try {
-      const apiKey = 'AIzaSyAAn7WMlGaRR7Si4cf5SCZE91kNOUuxBrQ';
-      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&key=${apiKey}&components=country:in`;
-      
-      const response = await fetch(url);
-      const data = await response.json();
+      const lat = currentLocation?.latitude;
+      const lon = currentLocation?.longitude;
+      const hasNumber = /\d/.test(input);
 
-      if (data.predictions) {
-        const suggestions = data.predictions.map((prediction: any) => ({
-          description: prediction.description,
-          placeId: prediction.place_id,
-        }));
+      // Photon primary call (bias near user, focus on house/street if number present)
+      const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(input)}${lat && lon ? `&lat=${lat}&lon=${lon}` : ''}&limit=6&lang=en${hasNumber ? `&layer=house,street,address` : ''}`;
+      const pRes = await fetch(photonUrl);
+      const pData = await pRes.json();
+      const photon: LocationSuggestion[] = (pData?.features || []).map((f: any) => ({
+        description: [f?.properties?.name, f?.properties?.housenumber, f?.properties?.street, f?.properties?.city, f?.properties?.state, f?.properties?.country].filter(Boolean).join(', '),
+        latitude: Array.isArray(f?.geometry?.coordinates) ? f.geometry.coordinates[1] : undefined,
+        longitude: Array.isArray(f?.geometry?.coordinates) ? f.geometry.coordinates[0] : undefined,
+      }));
 
-        if (isPickup) {
-          setPickupSuggestions(suggestions);
-          setShowPickupSuggestions(true);
-        } else {
-          setDestinationSuggestions(suggestions);
-          setShowDestinationSuggestions(true);
+      // Nominatim fallback (bounded around user) when house-level likely
+      let nominatim: LocationSuggestion[] = [];
+      if (hasNumber) {
+        let viewbox = '';
+        if (lat && lon) {
+          const latDelta = 0.05; // ~5-6km
+          const lonDelta = 0.05 / Math.max(Math.cos((lat * Math.PI) / 180), 0.3);
+          const left = lon - lonDelta;
+          const right = lon + lonDelta;
+          const top = lat + latDelta;
+          const bottom = lat - latDelta;
+          viewbox = `&viewbox=${left},${top},${right},${bottom}&bounded=1`;
         }
+        const nUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(input)}&format=json&addressdetails=1&limit=5${viewbox}`;
+        const nRes = await fetch(nUrl, { headers: { 'User-Agent': 'MoveMates/1.0 (contact@movemates.app)' } });
+        const nData = await nRes.json();
+        nominatim = (Array.isArray(nData) ? nData : []).map((it: any) => ({
+          description: [it?.display_name].filter(Boolean).join(', '),
+          latitude: it?.lat ? parseFloat(it.lat) : undefined,
+          longitude: it?.lon ? parseFloat(it.lon) : undefined,
+        }));
+      }
+
+      // Merge + dedupe (by description)
+      const mergedMap: Record<string, LocationSuggestion> = {};
+      [...photon, ...nominatim].forEach((s) => {
+        if (!s.description) return;
+        const key = s.description.toLowerCase();
+        if (!mergedMap[key]) mergedMap[key] = s;
+      });
+      const suggestions = Object.values(mergedMap).slice(0, 8);
+
+      if (isPickup) {
+        setPickupSuggestions(suggestions);
+        setShowPickupSuggestions(true);
+      } else {
+        setDestinationSuggestions(suggestions);
+        setShowDestinationSuggestions(true);
       }
     } catch (error) {
       console.error('Error fetching suggestions:', error);
@@ -227,40 +442,105 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   // Handle pickup input change
   const handlePickupChange = (text: string) => {
     setPickup(text);
-    fetchLocationSuggestions(text, true);
+    setPickupCoord(null);
+    if (pickupDebounceRef.current) clearTimeout(pickupDebounceRef.current);
+    pickupDebounceRef.current = setTimeout(async () => {
+      fetchLocationSuggestions(text, true);
+      const q = text.trim();
+      if (q.length >= 3) {
+        try {
+          const coords = await geocodeText(q);
+          setPickupCoord(coords);
+        } catch {
+          setPickupCoord(null);
+        }
+      }
+    }, 350);
   };
 
   // Handle destination input change
   const handleDestinationChange = (text: string) => {
     setDestination(text);
-    fetchLocationSuggestions(text, false);
+    setDestinationCoord(null);
+    if (destDebounceRef.current) clearTimeout(destDebounceRef.current);
+    destDebounceRef.current = setTimeout(async () => {
+      fetchLocationSuggestions(text, false);
+      const q = text.trim();
+      if (q.length >= 3) {
+        try {
+          const coords = await geocodeText(q);
+          setDestinationCoord(coords);
+        } catch {
+          setDestinationCoord(null);
+        }
+      }
+    }, 350);
   };
 
   // Select suggestion
-  const selectSuggestion = async (suggestion: string, isPickup: boolean) => {
+  const selectSuggestion = async (suggestion: string | LocationSuggestion, isPickup: boolean) => {
+    const isObj = typeof suggestion === 'object';
+    const text = isObj ? (suggestion as LocationSuggestion).description : suggestion;
+    const lat = isObj ? (suggestion as LocationSuggestion).latitude : undefined;
+    const lon = isObj ? (suggestion as LocationSuggestion).longitude : undefined;
     if (isPickup) {
-      setPickup(suggestion);
+      setPickup(text);
       setShowPickupSuggestions(false);
     } else {
-      setDestination(suggestion);
+      setDestination(text);
       setShowDestinationSuggestions(false);
     }
 
-    // Save to recent locations
     const user = auth.currentUser;
     if (user) {
-      const updatedRecent = [suggestion, ...recentLocations.filter(loc => loc !== suggestion)].slice(0, 5);
+      const updatedRecent = [text, ...recentLocations.filter(loc => loc !== text)].slice(0, 5);
       await updateDoc(doc(db, 'users', user.uid), {
         recentLocations: updatedRecent,
       }).catch(() => {});
     }
+
+    let coords: { latitude: number; longitude: number } | null = null;
+    try {
+      if (typeof lat === 'number' && typeof lon === 'number') {
+        coords = { latitude: lat, longitude: lon };
+      } else {
+        coords = await geocodeText(text);
+      }
+    } catch (e) {
+      coords = null;
+    }
+    if (coords) {
+      if (isPickup) setPickupCoord(coords); else setDestinationCoord(coords);
+      fitMapToPoints(isPickup ? coords : (pickupCoord || coords), isPickup ? (destinationCoord || coords) : coords);
+      const origin = isPickup ? coords : pickupCoord;
+      let dest = isPickup ? destinationCoord : coords;
+      // If user selected destination first and pickup is empty, default pickup to current location
+      if (!isPickup && !pickupCoord && currentLocation) {
+        setPickupCoord(currentLocation);
+      }
+      if (enableRoutingStep && origin && dest) {
+        await fetchRoute(origin, dest);
+      }
+    }
   };
 
+// ... (rest of the code remains the same)
   // Use current location for pickup
   const useCurrentLocationForPickup = () => {
     if (currentAddress) {
       setPickup(currentAddress);
       setShowPickupSuggestions(false);
+      if (currentLocation) {
+        setPickupCoord(currentLocation);
+        if (destinationCoord) {
+          if (enableRoutingStep) {
+            fetchRoute(currentLocation, destinationCoord);
+          }
+          fitMapToPoints(currentLocation, destinationCoord);
+        } else {
+          fitMapToPoints(currentLocation, currentLocation);
+        }
+      }
     }
   };
 
@@ -299,28 +579,36 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   return (
     <SafeAreaView style={styles.container}>
       {/* Map */}
-      {currentLocation && (
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          initialRegion={{
-            latitude: currentLocation.latitude,
-            longitude: currentLocation.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }}
-          showsUserLocation={true}
-          showsMyLocationButton={true}
-          followsUserLocation={true}
-        >
-          {/* Current Location Marker */}
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        initialRegion={{
+          latitude: currentLocation?.latitude ?? 20.5937,
+          longitude: currentLocation?.longitude ?? 78.9629,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}
+        showsUserLocation={true}
+        showsMyLocationButton={true}
+        followsUserLocation={true}
+      >
+        {currentLocation && (
           <Marker
             coordinate={currentLocation}
             title="You are here"
             description="Your current location"
           />
-        </MapView>
-      )}
+        )}
+        {pickupCoord && (
+          <Marker coordinate={pickupCoord} title="Pickup" />
+        )}
+        {destinationCoord && (
+          <Marker coordinate={destinationCoord} title="Destination" />
+        )}
+        {routeCoords.length > 1 && (
+          <Polyline coordinates={routeCoords} strokeColor="#1E88E5" strokeWidth={4} />
+        )}
+      </MapView>
 
       {/* Header */}
       <View style={styles.header}>
@@ -345,6 +633,15 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
         <Image source={require('../assets/walk.png')} style={{ width: 20, height: 20, tintColor: '#FFFFFF' }} />
       </TouchableOpacity>
 
+      {/* Locate Me FAB (works on both iOS and Android) */}
+      <TouchableOpacity
+        style={styles.locateFab}
+        onPress={recenterToUser}
+        activeOpacity={0.8}
+      >
+        <MaterialIcons name="my-location" size={22} color="#000" />
+      </TouchableOpacity>
+
       {/* Bottom Card */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -356,15 +653,13 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
           <View style={styles.inputContainer}>
             <View style={styles.labelRow}>
               <Text style={styles.inputLabel}>Pickup</Text>
-              {currentAddress && (
-                <TouchableOpacity 
-                  style={styles.currentLocationButton}
-                  onPress={useCurrentLocationForPickup}
-                >
-                  <MaterialIcons name="my-location" size={14} color="#000" />
-                  <Text style={styles.currentLocationText}>Use Current</Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity 
+                style={styles.currentLocationButton}
+                onPress={useCurrentLocationForPickup}
+              >
+                <MaterialIcons name="my-location" size={14} color="#000" />
+                <Text style={styles.currentLocationText}>Use Current</Text>
+              </TouchableOpacity>
             </View>
             <View style={styles.inputWrapper}>
               <MaterialIcons name="my-location" size={20} color="#666" style={styles.inputIcon} />
@@ -404,7 +699,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
                   <TouchableOpacity
                     key={index}
                     style={styles.suggestionItem}
-                    onPress={() => selectSuggestion(suggestion.description, true)}
+                    onPress={() => selectSuggestion(suggestion, true)}
                   >
                     <MaterialIcons name="place" size={18} color="#666" />
                     <Text style={styles.suggestionText}>{suggestion.description}</Text>
@@ -455,7 +750,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
                   <TouchableOpacity
                     key={index}
                     style={styles.suggestionItem}
-                    onPress={() => selectSuggestion(suggestion.description, false)}
+                    onPress={() => selectSuggestion(suggestion, false)}
                   >
                     <MaterialIcons name="place" size={18} color="#666" />
                     <Text style={styles.suggestionText}>{suggestion.description}</Text>
@@ -464,6 +759,14 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
               </View>
             )}
           </View>
+
+          {routeDistance != null && routeDuration != null && (
+            <View style={{ marginBottom: 10 }}>
+              <Text style={styles.routeInfo}>
+                Distance: {(routeDistance / 1000).toFixed(1)} km  •  ETA: {Math.max(1, Math.round(routeDuration / 60))} min
+              </Text>
+            </View>
+          )}
 
           {/* Book Button */}
           <TouchableOpacity
@@ -636,6 +939,24 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  locateFab: {
+    position: 'absolute',
+    top: 170,
+    right: 15,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+
   bottomCard: {
     position: 'absolute',
     bottom: 0,
@@ -737,6 +1058,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#000',
+  },
+  routeInfo: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 
   // Drawer

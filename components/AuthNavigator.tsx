@@ -23,6 +23,7 @@ import ChatScreen from '../screens/ChatScreen';
 import RemovedUserScreen from '../screens/RemovedUserScreen';
 import RemovedUsersScreen from '../screens/RemovedUsersScreen';
 import ProfilePhotoScreen from '../screens/ProfilePhotoScreen';
+import UserDetailsScreen from '../screens/UserDetailsScreen';
 import LanguageScreen from '../screens/LanguageScreen';
 import RoleChangeScreen from '../screens/RoleChangeScreen';
 import PreferencesScreen from '../screens/PreferencesScreen';
@@ -37,6 +38,8 @@ import ContactSupportScreen from '../screens/ContactSupportScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsConditionsScreen from '../screens/TermsConditionsScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import AnalyticsScreen from '../screens/AnalyticsScreen';
+import AuditLogsScreen from '../screens/AuditLogsScreen';
 
 const Stack = createStackNavigator();
 
@@ -106,6 +109,7 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="RemovedUser" component={RemovedUserScreen} />
       <Stack.Screen name="RemovedUsers" component={RemovedUsersScreen} />
       <Stack.Screen name="ProfilePhoto" component={ProfilePhotoScreen} />
+      <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
       <Stack.Screen name="Language" component={LanguageScreen} />
       <Stack.Screen name="RoleChange" component={RoleChangeScreen} />
       <Stack.Screen name="Preferences" component={PreferencesScreen} />
@@ -120,6 +124,8 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
       <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="Analytics" component={AnalyticsScreen} />
+      <Stack.Screen name="AuditLogs" component={AuditLogsScreen} />
     </Stack.Navigator>
   );
 };
