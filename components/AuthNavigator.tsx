@@ -2,7 +2,9 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useAuth } from '../contexts/AuthContext';
+import RequestWalkScreen from '../screens/RequestWalkScreen';
 import WandererHomeScreen from '../screens/WandererHomeScreen';
+import NearbyWalkScreen from '../screens/NearbyWalkScreen';
 import WalkerHomeScreen from '../screens/WalkerHomeScreen';
 import AdminDashboard from '../screens/AdminDashboard';
 import PendingApprovalScreen from '../screens/PendingApprovalScreen';
@@ -79,7 +81,7 @@ const AuthNavigator: React.FC = () => {
   } else if (userData.role === 'walker') {
     initialRouteName = userData.approved ? 'WalkerHome' : 'PendingApproval';
   } else if (userData.role === 'wanderer') {
-    initialRouteName = 'WandererHome';
+    initialRouteName = 'RequestWalk';
   }
 
   return (
@@ -89,6 +91,9 @@ const AuthNavigator: React.FC = () => {
         headerShown: false,
       }}
     >
+      <Stack.Screen name="RequestWalk" component={RequestWalkScreen} />
+      <Stack.Screen name="RouteWalk" component={WandererHomeScreen} />
+      <Stack.Screen name="NearbyWalk" component={NearbyWalkScreen} />
       <Stack.Screen name="WandererHome" component={WandererHomeScreen} />
       <Stack.Screen name="WalkerHome" component={WalkerHomeScreen} />
       <Stack.Screen name="AdminDashboard" component={AdminDashboard} />

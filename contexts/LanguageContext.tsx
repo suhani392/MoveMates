@@ -103,6 +103,19 @@ const translations: Record<Language, Record<string, string>> = {
     'enterPickup': 'Enter pickup location',
     'enterDestination': 'Enter destination',
     
+    // Request Walk Screen
+    'goodMorning': 'Good Morning',
+    'goodAfternoon': 'Good Afternoon',
+    'goodEvening': 'Good Evening',
+    'chooseWalkType': 'Choose Walk Type',
+    'selectWalkTypeDescription': 'Select the type of walk you want to request',
+    'routeWalk': 'Route Walk',
+    'routeWalkDescription': 'Walk from a pickup point to a destination — best for point-to-point walks.',
+    'nearbyWalk': 'Nearby Walk',
+    'nearbyWalkDescription': 'Walk locally (park/society) for a chosen duration — suitable for looped/nearby walks.',
+    'meetingPoint': 'Meeting Point',
+    'enterMeetingPoint': 'Enter meeting point',
+    
     // Walker Home
     'availableForWalk': 'Available for a walk?',
     'youreReady': "You're ready to accept walks",
@@ -201,6 +214,19 @@ const translations: Record<Language, Record<string, string>> = {
     'requestWalk': 'वॉक का अनुरोध करें',
     'enterPickup': 'पिकअप स्थान दर्ज करें',
     'enterDestination': 'गंतव्य दर्ज करें',
+    
+    // Request Walk Screen
+    'goodMorning': 'सुप्रभात',
+    'goodAfternoon': 'शुभ दोपहर',
+    'goodEvening': 'शुभ संध्या',
+    'chooseWalkType': 'वॉक प्रकार चुनें',
+    'selectWalkTypeDescription': 'वह वॉक प्रकार चुनें जिसका आप अनुरोध करना चाहते हैं',
+    'routeWalk': 'रूट वॉक',
+    'routeWalkDescription': 'पिकअप बिंदु से गंतव्य तक चलें — पॉइंट-टू-पॉइंट वॉक के लिए सर्वोत्तम।',
+    'nearbyWalk': 'आस-पास वॉक',
+    'nearbyWalkDescription': 'स्थानीय रूप से (पार्क/सोसायटी) चुनी गई अवधि के लिए चलें — लूप्ड/आस-पास वॉक के लिए उपयुक्त।',
+    'meetingPoint': 'मिलने का स्थान',
+    'enterMeetingPoint': 'मिलने का स्थान दर्ज करें',
     
     // Walker Home
     'availableForWalk': 'वॉक के लिए उपलब्ध?',

@@ -83,8 +83,11 @@ const WalkerRequestedScreen: React.FC<WalkerRequestedScreenProps> = ({ navigatio
   };
 
   const handleDone = () => {
-    // Navigate back to home or walker list
-    navigation.navigate('WandererHome');
+    // Reset navigation stack and go to RequestWalk (Wanderer home)
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'RequestWalk' }],
+    });
   };
 
   const handleCancelRequest = async () => {
@@ -96,19 +99,38 @@ const WalkerRequestedScreen: React.FC<WalkerRequestedScreenProps> = ({ navigatio
     try {
       await WalkRequestService.cancelRequest(requestId);
       Alert.alert('Success', 'Request cancelled successfully');
-      navigation.navigate('WandererHome');
+      // Reset navigation stack and go to RequestWalk (Wanderer home)
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'RequestWalk' }],
+      });
     } catch (error) {
       console.error('Error cancelling request:', error);
       Alert.alert('Error', 'Failed to cancel request. Please try again.');
     }
   };
 
+  const handleBack = () => {
+    // Reset navigation stack and go to RequestWalk (Wanderer home)
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'RequestWalk' }],
+    });
+  };
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header with Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+          <MaterialIcons name="arrow-back" size={28} color="#000000" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Walker Requested</Text>
+        <View style={{ width: 28 }} />
+      </View>
+
       <View style={styles.content}>
         <View style={styles.topContent}>
-          {/* Title */}
-          <Text style={styles.title}>Walker Requested</Text>
 
           {/* Success Message Card */}
           <View style={styles.successCard}>
@@ -163,21 +185,35 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 15,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#000000',
+  },
   content: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 30,
     justifyContent: 'space-between',
   },
   topContent: {
     flex: 1,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#000000',
-    marginBottom: 30,
-    textAlign: 'center',
   },
   successCard: {
     backgroundColor: '#E8F5E9',

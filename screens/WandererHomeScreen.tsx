@@ -622,9 +622,9 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
       </MapView>
 
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>
-          <MaterialIcons name="menu" size={28} color="#FFFFFF" />
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
+          <MaterialIcons name="arrow-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.headerButton}
@@ -848,6 +848,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
+                navigation.navigate('RequestWalk');
               }}
             >
               <Text style={styles.drawerText}>Home</Text>
@@ -930,7 +931,7 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   header: {
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',

@@ -18,7 +18,16 @@ import { useAuth } from '../contexts/AuthContext';
 
 type ScheduleDateTimeScreenProps = {
   navigation: StackNavigationProp<any>;
-  route: RouteProp<{ params: { pickup?: string; destination?: string } }, 'params'>;
+  route: RouteProp<{ 
+    params: { 
+      pickup?: string; 
+      destination?: string;
+      walkType?: 'route' | 'nearby';
+      meetingPoint?: string;
+      meetingPointCoord?: { latitude: number; longitude: number };
+      duration?: number;
+    } 
+  }, 'params'>;
 };
 
 const ITEM_HEIGHT = 50;
@@ -75,9 +84,15 @@ const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigat
       return;
     }
     
+    const walkType = route.params?.walkType || 'route';
+    
     const scheduleData = {
+      walkType,
       pickup: route.params?.pickup || '',
       destination: route.params?.destination || '',
+      meetingPoint: route.params?.meetingPoint || '',
+      meetingPointCoord: route.params?.meetingPointCoord,
+      duration: route.params?.duration,
       scheduledDate: selectedDate,
       scheduledTime: `${selectedHour.toString().padStart(2, '0')}:${selectedMinute.toString().padStart(2, '0')} ${selectedPeriod}`,
       preference: selectedPreference,
@@ -85,7 +100,9 @@ const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigat
       recurrence: selectedRecurrence,
       wandererName: userData?.name || 'Unknown Wanderer',
       wandererImage: userData?.profileImage || userData?.image,
-      estimatedDuration: '30-45 minutes', // You can calculate this based on distance
+      estimatedDuration: walkType === 'nearby' && route.params?.duration 
+        ? `${route.params.duration} minutes` 
+        : '30-45 minutes',
     };
     
     console.log('Schedule Data:', scheduleData);
