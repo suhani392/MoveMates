@@ -1,169 +1,122 @@
-## MoveMates
+# MoveMates
 
-A React Native app built with Expo and Firebase. This README walks you through setup from zero to running on real devices and emulators, plus how to connect multiple devices at once for team demos and testing.
+MoveMates is a companion walking service app that connects people who need walking assistance with trained walkers. Whether you need help getting to a destination, want company for a garden walk, or are looking for wellness walks, MoveMates makes it easy to find the right companion.
 
-### What’s inside
-- **Framework**: Expo (managed)
-- **Runtime**: React Native
-- **Language**: TypeScript
-- **Navigation**: `@react-navigation/*`
-- **State/Auth/Data**: Firebase Auth, Firestore, Realtime Database
+## Tech Stack
 
-### Repo tour
-- `App.tsx` and `index.ts`: App entry
-- `app.json`: Expo app config (icons, splash, platform settings)
-- `firebaseConfig.ts`: Firebase initialization (Auth persistence, Firestore, Realtime DB)
-- `components/`, `screens/`, `contexts/`, `services/`: UI, flows, context, and API helpers
+Built with React Native and Expo for cross-platform mobile development. We're using TypeScript throughout the codebase, Firebase for authentication and real-time data, and React Navigation for screen transitions.
 
----
+**Core Technologies:**
+- React Native with Expo
+- TypeScript
+- Firebase (Auth, Firestore, Realtime Database)
+- React Navigation
 
-## Prerequisites
-Install these first:
+## Project Structure
 
-- Node.js LTS (and npm). Check with: `node -v` and `npm -v`
-- Expo CLI: `npm i -g expo`
-- Android Studio (Android SDK + emulator) or Xcode (iOS simulator, macOS only)
-- Expo Go app on your phone (Android/iOS) for quick device testing
+The codebase is organized into logical folders:
+- **screens/** - All app screens (login, home, booking, etc.)
+- **components/** - Reusable UI components and navigation setup
+- **contexts/** - React contexts for auth, theme, and language
+- **services/** - API calls and Firebase interactions
+- **firebaseConfig.ts** - Firebase initialization and config
 
-Optional but handy:
-- A physical Android device with USB debugging enabled (Developer Options)
-- A physical iPhone (requires Apple setup; for development via Expo Go you don’t need a dev cert)
+## Getting Started
 
----
+### What You'll Need
 
-## Install and run
-1) Install dependencies
+Before diving in, make sure you have these installed:
+
+- **Node.js** (LTS version recommended) - Check by running `node -v`
+- **Expo CLI** - Install globally with `npm install -g expo`
+- **Expo Go app** on your phone (available on App Store and Play Store)
+- **Android Studio** (for Android development) or **Xcode** (for iOS, macOS only)
+
+### Installation
+
+Clone the repo and install dependencies:
 
 ```bash
+git clone <your-repo-url>
+cd MoveMates
 npm install
 ```
 
-2) Start the dev server (Metro via Expo)
+### Running the App
+
+Start the development server:
 
 ```bash
-npm run start
-# or run a specific target
-npm run android
-npm run ios
-npm run web
+npm start
 ```
 
-3) Open on a device
-- Scan the QR in the terminal/Expo Dev Tools with the Expo Go app
-- Or click “Run on Android device/emulator” / “Run on iOS simulator” in Dev Tools
+This opens Expo Dev Tools in your browser. From here you can:
+- Scan the QR code with Expo Go on your phone
+- Press `a` to open on Android emulator
+- Press `i` to open on iOS simulator
+- Press `w` to open in web browser
 
-Notes:
-- First run can take a minute to bundle. Subsequent edits hot reload.
-- If your network blocks LAN, switch the connection mode to “Tunnel” in Dev Tools.
+**First time running?** The initial bundle might take a minute. After that, changes will hot reload instantly.
 
----
+**Can't connect?** If you're on a restricted network, switch to Tunnel mode in the Expo Dev Tools.
 
-## Firebase setup
-Firebase is already initialized in `firebaseConfig.ts`:
+## Firebase Configuration
 
-```startLine:endLine:firebaseConfig.ts
-// See file for full configuration and initialization
-```
+The app uses Firebase for user authentication and data storage. The configuration is already set up in `firebaseConfig.ts`, but here's what you should know:
 
-What you should know:
-- The project currently uses Auth (with persistent session via AsyncStorage), Firestore, and Realtime Database.
-- The config values are public web keys by design for Firebase Web/React Native. Still, restrict API key usage in the Firebase console (App Check, domain restrictions if using web, database security rules, etc.).
-- To point to a different Firebase project, replace the config in `firebaseConfig.ts` with your project’s values from Firebase Console > Project settings > General > Your apps.
+**Current Setup:**
+- Firebase Authentication (with AsyncStorage for session persistence)
+- Firestore for user data and walk requests
+- Realtime Database for live updates
 
-Security tips (strongly recommended):
-- Set Firestore and Realtime Database Rules appropriately for your data model.
-- Enable App Check if feasible.
-- Lock down Storage rules if you add Storage later.
+**Using Your Own Firebase Project:**
 
----
+If you want to connect to a different Firebase project:
 
-## Connecting a single device
+1. Go to Firebase Console → Project Settings → General
+2. Scroll to "Your apps" and copy the config
+3. Replace the config object in `firebaseConfig.ts`
 
-You have three common options; pick the one that fits your setup.
+**Security Note:** The Firebase config keys are safe to commit (they're meant for client apps), but make sure to set up proper Firestore security rules in your Firebase console to protect user data.
 
-### A) Expo Go over LAN (fastest)
-1) Ensure your computer and phone are on the same Wi‑Fi network
-2) Start the project: `npm run start`
-3) In Dev Tools, set connection to “LAN”
-4) Open Expo Go on your phone and scan the QR
-
-If the bundle never loads, your network may block peer traffic. Switch to Tunnel.
-
-### B) Expo Go over Tunnel (works anywhere)
-1) Start the project: `npm run start`
-2) In Dev Tools, set connection to “Tunnel”
-3) Scan the QR with Expo Go
-
-This routes through Expo’s servers. It’s slower than LAN but reliable across networks.
-
-### C) Emulator/Simulator (no phone needed)
-- Android: Open Android Studio > Virtual Device, then `npm run android`
-- iOS (macOS): `npm run ios` to boot the simulator and install the app
-
----
-
-## Connecting many devices at once (team demos/testing)
-Expo supports multiple clients simultaneously. You can have several phones and emulators connected and receiving hot reloads.
-
-Recommended patterns:
-
-### Option 1: LAN for everyone on the same Wi‑Fi
-1) Everyone joins the same Wi‑Fi
-2) Start the project: `npm run start`
-3) Set connection to “LAN”
-4) Each tester opens Expo Go and scans the same QR
-
-Pros: Fast reloads. Cons: Requires a permissive network; corporate Wi‑Fi may block it.
-
-### Option 2: Tunnel when people are remote or on different networks
-1) Start the project: `npm run start`
-2) Set connection to “Tunnel`
-3) Share the QR or the “exp+...” URL with your team
-4) Each person opens the link in Expo Go
-
-Pros: Works anywhere. Cons: Slower bundles and reloads.
-
-### Option 3: Mix and match (USB + LAN)
-- Android devices on-site: connect via USB and run `npm run android` to install directly; they’ll still reload from Metro
-- Others remote: connect via Tunnel
-
-Tips for smooth multi-device sessions:
-- Keep the Metro terminal visible to spot errors quickly
-- If a device desyncs, kill the app on that device and reopen from Expo Go
-- Avoid large image assets in dev; they slow down reloads across all clients
-
----
-
-## Useful scripts
+## Available Scripts
 
 ```bash
-npm run start    # Expo Dev Tools + Metro bundler
-npm run android  # Launch Android emulator or install on connected device
-npm run ios      # Launch iOS simulator (macOS only)
-npm run web      # Run in the browser
+npm start          # Start Expo dev server
+npm run android    # Run on Android device/emulator
+npm run ios        # Run on iOS simulator (macOS only)
+npm run web        # Run in browser
 ```
 
----
+## Common Issues
 
-## Troubleshooting
-- Metro stuck “Loading…”: Stop it and run `expo start -c` (clear cache)
-- Device can’t load on LAN: Switch Dev Tools to “Tunnel”
-- Android device not detected: Confirm USB debugging is on; run `adb devices`
-- iOS simulator won’t boot: Open Xcode > Settings > Platforms and install a simulator
-- Red screen error after install: Fully close Expo Go on the device, reopen, and re-scan the QR
+**App won't load on phone?**
+- Make sure your phone and computer are on the same WiFi
+- Try switching to Tunnel mode in Expo Dev Tools
+- Restart the Expo Go app
 
----
+**Metro bundler stuck?**
+- Clear the cache: `expo start -c`
+
+**Android device not showing up?**
+- Enable USB debugging in Developer Options
+- Run `adb devices` to check connection
+
+**Changes not reflecting?**
+- Shake your device and press "Reload"
+- Or press `r` in the terminal
 
 ## Contributing
-Simple flow:
-1) Create a feature branch
-2) Make changes
-3) Test on at least one physical device (Expo Go) and one emulator/simulator
-4) Open a PR
 
----
+We welcome contributions! Here's how to get started:
+
+1. Fork the repo and create a new branch
+2. Make your changes
+3. Test on both iOS and Android if possible
+4. Submit a pull request
+
+Please make sure your code follows the existing style and includes appropriate comments.
 
 ## License
-See `package.json` for license info.
 
-
+This project is licensed under the terms specified in `package.json`.
