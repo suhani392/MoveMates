@@ -21,7 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 
-type NearbyWalkScreenProps = {
+type SuggestiveWalkScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
@@ -32,7 +32,7 @@ interface LocationSuggestion {
   longitude?: number;
 }
 
-const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
+const SuggestiveWalkScreen: React.FC<SuggestiveWalkScreenProps> = ({ navigation }) => {
   const { userData } = useAuth();
   const { colors } = useTheme();
   const { t } = useLanguage();
@@ -44,6 +44,8 @@ const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
   } | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
   const [customDuration, setCustomDuration] = useState('');
+  const [suggestionType, setSuggestionType] = useState('');
+  const [suggestionCategory, setSuggestionCategory] = useState('');
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{
     latitude: number;
@@ -294,11 +296,23 @@ const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
       return;
     }
 
+    if (!suggestionType.trim()) {
+      Alert.alert('Missing Information', 'Please specify what type of suggestion you need.');
+      return;
+    }
+
+    if (!suggestionCategory.trim()) {
+      Alert.alert('Missing Information', 'Please specify the category for suggestions.');
+      return;
+    }
+
     navigation.navigate('ScheduleDateTime', {
-      walkType: 'nearby',
+      walkType: 'suggestiveWalk',
       meetingPoint: meetingPoint.trim(),
       meetingPointCoord,
       duration: finalDuration,
+      suggestionType: suggestionType.trim(),
+      suggestionCategory: suggestionCategory.trim(),
     });
   };
 
@@ -330,7 +344,7 @@ const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
         <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('nearbyWalk')}</Text>
+        <Text style={styles.headerTitle}>Suggestive Walk</Text>
         <View style={styles.headerButton} />
       </View>
 
@@ -462,6 +476,36 @@ const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
               </View>
             </View>
 
+            {/* Suggestion Type */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Type of Suggestion</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="lightbulb-outline" size={20} color="#666" style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
+                  value={suggestionType}
+                  onChangeText={setSuggestionType}
+                  placeholder="e.g., Best restaurants, Shopping areas, etc."
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+            </View>
+
+            {/* Suggestion Category */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Category</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="category" size={20} color="#666" style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
+                  value={suggestionCategory}
+                  onChangeText={setSuggestionCategory}
+                  placeholder="e.g., Food, Entertainment, Health, etc."
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+            </View>
+
             {/* Continue Button */}
             <TouchableOpacity
               style={styles.continueButton}
@@ -545,7 +589,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 25,
     paddingBottom: Platform.OS === 'ios' ? 25 : 20,
-    maxHeight: '50%',
+    maxHeight: '65%',
   },
   inputContainer: {
     marginBottom: 20,
@@ -684,4 +728,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default NearbyWalkScreen;
+export default SuggestiveWalkScreen;

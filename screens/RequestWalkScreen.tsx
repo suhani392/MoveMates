@@ -109,7 +109,7 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
       icon: 'pan-tool',
       color: '#549553',
       bgColor: '#E8F6E9',
-      screen: 'NearbyWalk',
+      screen: 'HelpingHand',
     },
     {
       title: 'Need a Companion for Garden Walk?',
@@ -130,14 +130,14 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
       icon: 'explore',
       color: '#81C784',
       bgColor: '#F6E8E8',
-      screen: 'NearbyWalk',
+      screen: 'ExploringWalk',
     },
     {
       title: 'Need a person to help you discover places for good things?',
       icon: 'place',
       color: '#9CCC65',
       bgColor: '#E8F6F4',
-      screen: 'NearbyWalk',
+      screen: 'SuggestiveWalk',
     },
   ];
 
@@ -163,7 +163,7 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Greeting Section with Pastel Green Background */}
+        {/* Greeting Section */}
         <Animated.View 
           style={[
             styles.greetingSection,
@@ -179,6 +179,31 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
           <Text style={styles.dateTimeText}>
             {currentDateTime}
           </Text>
+        </Animated.View>
+
+        {/* Stats Cards */}
+        <Animated.View 
+          style={[
+            styles.statsContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          {/* Calories Burnt Card */}
+          <View style={styles.statCard}>
+            <MaterialIcons name="local-fire-department" size={32} color="#000000" />
+            <Text style={styles.statValue}>245</Text>
+            <Text style={styles.statLabel}>Calories Burnt{'\n'}Today</Text>
+          </View>
+
+          {/* Weekly Target Card */}
+          <View style={styles.statCard}>
+            <MaterialIcons name="flag" size={32} color="#000000" />
+            <Text style={styles.statValue}>1500</Text>
+            <Text style={styles.statLabel}>Target This{'\n'}Week</Text>
+          </View>
         </Animated.View>
 
         {/* Walk Type Section */}
@@ -235,6 +260,15 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
           </View>
         </Animated.View>
       </ScrollView>
+
+      {/* Walker Updates Button - Bottom Right */}
+      <TouchableOpacity
+        style={styles.walkerUpdatesButton}
+        onPress={() => navigation.navigate('WalkerUpdates')}
+        activeOpacity={0.8}
+      >
+        <Image source={require('../assets/walk.png')} style={{ width: 28, height: 28, tintColor: '#FFFFFF' }} />
+      </TouchableOpacity>
 
       {/* Drawer */}
       <Modal
@@ -388,10 +422,9 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   greetingSection: {
-    backgroundColor: 'rgba(184, 235, 255, 0.7)',
     paddingHorizontal: 25,
-    paddingVertical: 30,
-    marginBottom: 25,
+    paddingTop: 30,
+    paddingBottom: 15,
   },
   greetingText: {
     fontSize: 24,
@@ -403,6 +436,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '400',
     color: '#666666',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 25,
+    gap: 15,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: 'rgba(184, 235, 255, 0.7)',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  statValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#000000',
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  statLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#000000',
+    textAlign: 'center',
+    lineHeight: 18,
   },
   walkTypeSection: {
     paddingHorizontal: 20,
@@ -525,6 +590,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FF0000',
     fontWeight: '600',
+  },
+  walkerUpdatesButton: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
   },
 });
 

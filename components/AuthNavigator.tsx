@@ -1,11 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useAuth } from '../contexts/AuthContext';
 import RequestWalkScreen from '../screens/RequestWalkScreen';
 import WandererHomeScreen from '../screens/WandererHomeScreen';
 import NearbyWalkScreen from '../screens/NearbyWalkScreen';
+import HelpingHandScreen from '../screens/HelpingHandScreen';
+import SuggestiveWalkScreen from '../screens/SuggestiveWalkScreen';
+import ExploringWalkScreen from '../screens/ExploringWalkScreen';
 import WalkerHomeScreen from '../screens/WalkerHomeScreen';
+import PermissionsScreen from '../screens/PermissionsScreen';
 import AdminDashboard from '../screens/AdminDashboard';
 import PendingApprovalScreen from '../screens/PendingApprovalScreen';
 import HelpPolicyScreen from '../screens/HelpPolicyScreen';
@@ -21,6 +26,7 @@ import WalkerRequestedScreen from '../screens/WalkerRequestedScreen';
 import WalkerUpdatesScreen from '../screens/WalkerUpdatesScreen';
 import WandererDetailsScreen from '../screens/WandererDetailsScreen';
 import WandererUpdatesScreen from '../screens/WandererUpdatesScreen';
+import RequestAcceptedScreen from '../screens/RequestAcceptedScreen';
 import ChatScreen from '../screens/ChatScreen';
 import RemovedUserScreen from '../screens/RemovedUserScreen';
 import RemovedUsersScreen from '../screens/RemovedUsersScreen';
@@ -43,13 +49,40 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import AuditLogsScreen from '../screens/AuditLogsScreen';
 import LocationSearchScreen from '../screens/LocationSearchScreen';
+import LiveWalkTrackingScreen from '../screens/LiveWalkTrackingScreen';
+import SOSScreen from '../screens/SOSScreen';
+import FamilyDashboardScreen from '../screens/FamilyDashboardScreen';
+import PaymentScreen from '../screens/PaymentScreen';
 
 const Stack = createStackNavigator();
 
 const AuthNavigator: React.FC = () => {
   const { user, userData, loading } = useAuth();
+  const [permsReady, setPermsReady] = React.useState(false);
+  const [needsPermissions, setNeedsPermissions] = React.useState(false);
 
-  if (loading) {
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const done = await AsyncStorage.getItem('hasCompletedPermissions');
+        if (mounted) {
+          setNeedsPermissions(done !== 'true');
+        }
+      } catch (e) {
+        if (mounted) {
+          setNeedsPermissions(true);
+        }
+      } finally {
+        if (mounted) setPermsReady(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (loading || !permsReady) {
     return (
       <View style={styles.loadingContainer}>
         <Text>Loading...</Text>
@@ -86,14 +119,22 @@ const AuthNavigator: React.FC = () => {
 
   return (
     <Stack.Navigator
-      initialRouteName={initialRouteName}
+      initialRouteName={needsPermissions ? 'Permissions' : initialRouteName}
       screenOptions={{
         headerShown: false,
       }}
     >
+      <Stack.Screen
+        name="Permissions"
+        component={PermissionsScreen}
+        initialParams={{ redirectTo: initialRouteName }}
+      />
       <Stack.Screen name="RequestWalk" component={RequestWalkScreen} />
       <Stack.Screen name="RouteWalk" component={WandererHomeScreen} />
       <Stack.Screen name="NearbyWalk" component={NearbyWalkScreen} />
+      <Stack.Screen name="HelpingHand" component={HelpingHandScreen} />
+      <Stack.Screen name="SuggestiveWalk" component={SuggestiveWalkScreen} />
+      <Stack.Screen name="ExploringWalk" component={ExploringWalkScreen} />
       <Stack.Screen name="WandererHome" component={WandererHomeScreen} />
       <Stack.Screen name="WalkerHome" component={WalkerHomeScreen} />
       <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
@@ -111,6 +152,7 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="WalkerUpdates" component={WalkerUpdatesScreen} />
       <Stack.Screen name="WandererDetails" component={WandererDetailsScreen} />
       <Stack.Screen name="WandererUpdates" component={WandererUpdatesScreen} />
+      <Stack.Screen name="RequestAccepted" component={RequestAcceptedScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="RemovedUser" component={RemovedUserScreen} />
       <Stack.Screen name="RemovedUsers" component={RemovedUsersScreen} />
@@ -133,6 +175,10 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="Analytics" component={AnalyticsScreen} />
       <Stack.Screen name="AuditLogs" component={AuditLogsScreen} />
       <Stack.Screen name="LocationSearch" component={LocationSearchScreen} />
+      <Stack.Screen name="LiveWalkTracking" component={LiveWalkTrackingScreen} />
+      <Stack.Screen name="SOS" component={SOSScreen} />
+      <Stack.Screen name="FamilyDashboard" component={FamilyDashboardScreen} />
+      <Stack.Screen name="Payment" component={PaymentScreen} />
     </Stack.Navigator>
   );
 };

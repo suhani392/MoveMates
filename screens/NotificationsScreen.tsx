@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -38,6 +39,8 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ navigation })
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -113,30 +116,38 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ navigation })
       await markAsRead(notification.id);
     }
 
-    // Navigate based on notification type
-    switch (notification.type) {
-      case 'message':
-        if (notification.relatedUserId && notification.relatedUserName) {
-          navigation.navigate('Chat', {
-            userId: notification.relatedUserId,
-            userName: notification.relatedUserName,
-            userImage: notification.relatedUserImage,
-          });
-        }
-        break;
-      case 'walk_request':
-      case 'walk_accepted':
-      case 'walker_arriving':
-      case 'wanderer_waiting':
-        // Navigate to appropriate updates screen
-        navigation.navigate('WalkerUpdates');
-        break;
-      case 'walk_completed':
-        navigation.navigate('WalkHistory');
-        break;
-      default:
-        break;
+    // For message notifications, navigate to chat
+    if (notification.type === 'message') {
+      if (notification.relatedUserId && notification.relatedUserName) {
+        navigation.navigate('Chat', {
+          userId: notification.relatedUserId,
+          userName: notification.relatedUserName,
+          userImage: notification.relatedUserImage,
+        });
+      }
+    } else {
+      // For all other notifications, show modal with details
+      setSelectedNotification(notification);
+      setShowModal(true);
     }
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedNotification(null);
+  };
+
+  const getFullTimestamp = (timestamp: any) => {
+    if (!timestamp) return 'Unknown time';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   const getNotificationIcon = (type: string) => {
@@ -302,6 +313,74 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ navigation })
           </View>
         )}
       </ScrollView>
+
+      {/* Notification Details Modal */}
+      <Modal
+        visible={showModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {selectedNotification && (
+              <>
+                {/* Modal Header */}
+                <View style={styles.modalHeader}>
+                  <View style={[
+                    styles.modalIconContainer,
+                    { backgroundColor: `${getNotificationIcon(selectedNotification.type).color}15` }
+                  ]}>
+                    <MaterialIcons
+                      name={getNotificationIcon(selectedNotification.type).name as any}
+                      size={32}
+                      color={getNotificationIcon(selectedNotification.type).color}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={styles.modalCloseButton}
+                    onPress={closeModal}
+                  >
+                    <MaterialIcons name="close" size={24} color="#666666" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Modal Content */}
+                <Text style={styles.modalTitle}>{selectedNotification.title}</Text>
+                
+                <View style={styles.modalDivider} />
+                
+                <ScrollView style={styles.modalScrollView}>
+                  <Text style={styles.modalMessage}>{selectedNotification.message}</Text>
+                  
+                  {selectedNotification.relatedUserName && (
+                    <View style={styles.modalInfoRow}>
+                      <MaterialIcons name="person" size={18} color="#666666" />
+                      <Text style={styles.modalInfoText}>{selectedNotification.relatedUserName}</Text>
+                    </View>
+                  )}
+                  
+                  <View style={styles.modalInfoRow}>
+                    <MaterialIcons name="access-time" size={18} color="#666666" />
+                    <Text style={styles.modalInfoText}>
+                      {getFullTimestamp(selectedNotification.timestamp)}
+                    </Text>
+                  </View>
+                </ScrollView>
+
+                {/* Modal Actions */}
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={closeModal}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.modalButtonText}>Close</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -472,6 +551,90 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 25,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseButton: {
+    padding: 5,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 15,
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginBottom: 20,
+  },
+  modalScrollView: {
+    maxHeight: 300,
+    marginBottom: 20,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#333333',
+    lineHeight: 24,
+    marginBottom: 20,
+  },
+  modalInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 10,
+  },
+  modalInfoText: {
+    fontSize: 14,
+    color: '#666666',
+    flex: 1,
+  },
+  modalButton: {
+    backgroundColor: '#000000',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 

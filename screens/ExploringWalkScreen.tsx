@@ -21,7 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 
-type NearbyWalkScreenProps = {
+type ExploringWalkScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
@@ -32,7 +32,7 @@ interface LocationSuggestion {
   longitude?: number;
 }
 
-const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
+const ExploringWalkScreen: React.FC<ExploringWalkScreenProps> = ({ navigation }) => {
   const { userData } = useAuth();
   const { colors } = useTheme();
   const { t } = useLanguage();
@@ -44,6 +44,7 @@ const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
   } | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
   const [customDuration, setCustomDuration] = useState('');
+  const [placeType, setPlaceType] = useState('');
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{
     latitude: number;
@@ -294,11 +295,17 @@ const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
       return;
     }
 
+    if (!placeType.trim()) {
+      Alert.alert('Missing Information', 'Please specify what type of place you want to explore.');
+      return;
+    }
+
     navigation.navigate('ScheduleDateTime', {
-      walkType: 'nearby',
+      walkType: 'exploringWalk',
       meetingPoint: meetingPoint.trim(),
       meetingPointCoord,
       duration: finalDuration,
+      placeType: placeType.trim(),
     });
   };
 
@@ -330,7 +337,7 @@ const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
         <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('nearbyWalk')}</Text>
+        <Text style={styles.headerTitle}>Exploring Walk</Text>
         <View style={styles.headerButton} />
       </View>
 
@@ -462,6 +469,22 @@ const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
               </View>
             </View>
 
+            {/* Place Type to Explore */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Type of Place to Explore</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="explore" size={20} color="#666" style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
+                  value={placeType}
+                  onChangeText={setPlaceType}
+                  placeholder="e.g., Historic sites, Nature parks, Museums, etc."
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                />
+              </View>
+            </View>
+
             {/* Continue Button */}
             <TouchableOpacity
               style={styles.continueButton}
@@ -545,7 +568,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 25,
     paddingBottom: Platform.OS === 'ios' ? 25 : 20,
-    maxHeight: '50%',
+    maxHeight: '60%',
   },
   inputContainer: {
     marginBottom: 20,
@@ -684,4 +707,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default NearbyWalkScreen;
+export default ExploringWalkScreen;

@@ -1,11 +1,18 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type PermissionsScreenProps = {
   navigation: StackNavigationProp<any>;
-  route: RouteProp<any, 'Permissions'>;
+  route: RouteProp<any, 'Permissions'> & {
+    params?: {
+      selectedRole?: 'walker' | 'wanderer';
+      isExistingUser?: boolean;
+      redirectTo?: string;
+    };
+  };
 };
 
 const PermissionsScreen: React.FC<PermissionsScreenProps> = ({ navigation, route }) => {
@@ -13,6 +20,74 @@ const PermissionsScreen: React.FC<PermissionsScreenProps> = ({ navigation, route
   const [contactsEnabled, setContactsEnabled] = useState(false);
   const [notificationEnabled, setNotificationEnabled] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
+
+  const requestPermissions = async () => {
+    const results: Record<string, 'granted' | 'denied' | 'unavailable'> = {};
+
+    // Location
+    try {
+      const Location = require('expo-location');
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      results.location = status === 'granted' ? 'granted' : 'denied';
+    } catch {
+      results.location = 'unavailable';
+    }
+
+    // Notifications (iOS requires explicit prompt, Android 13+ too)
+    try {
+      const Notifications = require('expo-notifications');
+      const { status } = await Notifications.requestPermissionsAsync();
+      results.notifications = status === 'granted' ? 'granted' : 'denied';
+    } catch {
+      results.notifications = 'unavailable';
+    }
+
+    // Contacts (optional)
+    try {
+      const Contacts = require('expo-contacts');
+      const { status } = await Contacts.requestPermissionsAsync();
+      results.contacts = status === 'granted' ? 'granted' : 'denied';
+    } catch {
+      results.contacts = 'unavailable';
+    }
+
+    // Camera & Microphone (optional)
+    try {
+      const Camera = require('expo-camera');
+      const { status } = await Camera.Camera.requestCameraPermissionsAsync();
+      results.camera = status === 'granted' ? 'granted' : 'denied';
+    } catch {
+      results.camera = 'unavailable';
+    }
+    try {
+      const Camera = require('expo-camera');
+      const { status } = await Camera.Camera.requestMicrophonePermissionsAsync();
+      results.microphone = status === 'granted' ? 'granted' : 'denied';
+    } catch {
+      results.microphone = 'unavailable';
+    }
+
+    try {
+      await AsyncStorage.multiSet([
+        ['permission.location', results.location],
+        ['permission.notifications', results.notifications],
+        ['permission.contacts', results.contacts],
+        ['permission.camera', results.camera],
+        ['permission.microphone', results.microphone],
+        ['hasCompletedPermissions', 'true'],
+      ]);
+    } catch {}
+
+    const target = route?.params?.redirectTo;
+    if (target) {
+      navigation.reset({ index: 0, routes: [{ name: target as never }] as any });
+    } else {
+      navigation.navigate('Login', {
+        selectedRole: route?.params?.selectedRole,
+        isExistingUser: route?.params?.isExistingUser,
+      } as any);
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
@@ -111,10 +186,7 @@ const PermissionsScreen: React.FC<PermissionsScreenProps> = ({ navigation, route
 
         <TouchableOpacity
           style={styles.allowButton}
-          onPress={() => navigation.navigate('Login', { 
-            selectedRole: route?.params?.selectedRole,
-            isExistingUser: route?.params?.isExistingUser 
-          })}
+          onPress={requestPermissions}
         >
           <Text style={styles.allowButtonText}>Allow the permissions</Text>
         </TouchableOpacity>

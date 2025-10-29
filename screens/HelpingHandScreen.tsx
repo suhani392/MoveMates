@@ -21,7 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 
-type NearbyWalkScreenProps = {
+type HelpingHandScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
@@ -32,7 +32,7 @@ interface LocationSuggestion {
   longitude?: number;
 }
 
-const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
+const HelpingHandScreen: React.FC<HelpingHandScreenProps> = ({ navigation }) => {
   const { userData } = useAuth();
   const { colors } = useTheme();
   const { t } = useLanguage();
@@ -44,6 +44,7 @@ const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
   } | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
   const [customDuration, setCustomDuration] = useState('');
+  const [helpType, setHelpType] = useState('');
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{
     latitude: number;
@@ -294,11 +295,17 @@ const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
       return;
     }
 
+    if (!helpType.trim()) {
+      Alert.alert('Missing Information', 'Please specify what type of help you need.');
+      return;
+    }
+
     navigation.navigate('ScheduleDateTime', {
-      walkType: 'nearby',
+      walkType: 'helpingHand',
       meetingPoint: meetingPoint.trim(),
       meetingPointCoord,
       duration: finalDuration,
+      helpType: helpType.trim(),
     });
   };
 
@@ -330,7 +337,7 @@ const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
         <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('nearbyWalk')}</Text>
+        <Text style={styles.headerTitle}>Helping Hand</Text>
         <View style={styles.headerButton} />
       </View>
 
@@ -462,6 +469,22 @@ const NearbyWalkScreen: React.FC<NearbyWalkScreenProps> = ({ navigation }) => {
               </View>
             </View>
 
+            {/* Help Type */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Type of Help Needed</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="help-outline" size={20} color="#666" style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
+                  value={helpType}
+                  onChangeText={setHelpType}
+                  placeholder="e.g., Carrying groceries, Medical assistance, etc."
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                />
+              </View>
+            </View>
+
             {/* Continue Button */}
             <TouchableOpacity
               style={styles.continueButton}
@@ -545,7 +568,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 25,
     paddingBottom: Platform.OS === 'ios' ? 25 : 20,
-    maxHeight: '50%',
+    maxHeight: '60%',
   },
   inputContainer: {
     marginBottom: 20,
@@ -684,4 +707,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default NearbyWalkScreen;
+export default HelpingHandScreen;

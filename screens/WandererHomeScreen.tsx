@@ -626,23 +626,9 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
         <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => navigation.navigate('Notifications')}
-        >
-          <MaterialIcons name="notifications" size={28} color="#FFFFFF" />
-          {hasUnreadNotifications && <View style={styles.notificationDot} />}
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Destination Walk</Text>
+        <View style={styles.headerButton} />
       </View>
-
-      {/* Walking Person Icon Circle */}
-      <TouchableOpacity
-        style={styles.walkingIconCircle}
-        onPress={() => navigation.navigate('WalkerUpdates')}
-        activeOpacity={0.8}
-      >
-        <Image source={require('../assets/walk.png')} style={{ width: 20, height: 20, tintColor: '#FFFFFF' }} />
-      </TouchableOpacity>
 
       {/* Locate Me FAB (works on both iOS and Android) */}
       <TouchableOpacity
@@ -940,6 +926,13 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     zIndex: 10,
   },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    flex: 1,
+    textAlign: 'center',
+  },
   headerButton: {
     width: 45,
     height: 45,
@@ -958,26 +951,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
-  walkingIconCircle: {
-    position: 'absolute',
-    top: 110,
-    right: 15,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#000000',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 5,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
   locateFab: {
     position: 'absolute',
-    top: 170,
+    top: 90,
     right: 15,
     width: 44,
     height: 44,

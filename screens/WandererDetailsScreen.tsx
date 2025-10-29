@@ -124,11 +124,14 @@ const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: 
         });
       }
 
-      Alert.alert(
-        'Request Accepted',
-        `You have accepted the walk request from ${wanderer.name}`,
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      // Navigate to the acceptance confirmation screen
+      navigation.replace('RequestAccepted', {
+        wandererName: wanderer.name,
+        wandererId: wanderer.id,
+        wandererImage: wanderer.image,
+        scheduledTime: wanderer.scheduledTime,
+        requestId: requestId,
+      });
     } catch (error) {
       console.error('Error accepting request:', error);
       Alert.alert('Error', 'Failed to accept the request. Please try again.');
