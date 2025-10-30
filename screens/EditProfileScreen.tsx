@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { auth, db, storage } from '../firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import DatePickerInput from '../components/DatePickerInput';
 
 type EditProfileScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -29,6 +30,17 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
   
   // Form fields
   const [name, setName] = useState('');
+  const [dob, setDob] = useState<Date | null>(null);
+  const [gender, setGender] = useState('');
+  const [motherTongue, setMotherTongue] = useState('');
+  const [preferredLanguages, setPreferredLanguages] = useState('');
+  const [contactNo, setContactNo] = useState('');
+  const [altContactNo, setAltContactNo] = useState('');
+  const [email, setEmail] = useState('');
+  const [address, setAddress] = useState('');
+  const [altAddress, setAltAddress] = useState('');
+  const [aadharNo, setAadharNo] = useState('');
+  const [panNo, setPanNo] = useState('');
   const [about, setAbout] = useState('');
   const [languages, setLanguages] = useState('');
   const [walkingPace, setWalkingPace] = useState('');
@@ -59,6 +71,20 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
         if (userDoc.exists()) {
           const data = userDoc.data();
           setName(data.name || '');
+          if (data.dob) {
+            const dobDate = typeof data.dob === 'string' ? new Date(data.dob) : data.dob.toDate?.() || null;
+            setDob(dobDate);
+          }
+          setGender(data.gender || '');
+          setMotherTongue(data.motherTongue || '');
+          setPreferredLanguages(data.preferredLanguage || '');
+          setContactNo(data.contactNo || data.phone || '');
+          setAltContactNo(data.altContactNo || '');
+          setEmail(data.email || '');
+          setAddress(data.address || '');
+          setAltAddress(data.altAddress || '');
+          setAadharNo(data.aadharNo || '');
+          setPanNo(data.panNo || '');
           setAbout(data.about || '');
           setLanguages(data.languages || '');
           setWalkingPace(data.walkingPace || data.pace || '');
@@ -117,6 +143,32 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
           hobbies: hobbies.trim(),
         };
 
+        // Add common fields
+        if (dob) {
+          updateData.dob = dob.toISOString().split('T')[0];
+        }
+        if (gender) {
+          updateData.gender = gender;
+        }
+        if (motherTongue) {
+          updateData.motherTongue = motherTongue.trim();
+        }
+        if (preferredLanguages) {
+          updateData.preferredLanguage = preferredLanguages.trim();
+        }
+        if (contactNo) {
+          updateData.contactNo = contactNo.trim();
+        }
+        if (altContactNo) {
+          updateData.altContactNo = altContactNo.trim();
+        }
+        if (email) {
+          updateData.email = email.trim();
+        }
+        if (address) {
+          updateData.address = address.trim();
+        }
+
         // Add role-specific fields
         if (userRole === 'walker' || userRole === 'wanderer') {
           updateData.walkingPace = walkingPace.trim();
@@ -128,6 +180,15 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
 
         // Walker-specific fields
         if (userRole === 'walker') {
+          if (altAddress) {
+            updateData.altAddress = altAddress.trim();
+          }
+          if (aadharNo) {
+            updateData.aadharNo = aadharNo.trim();
+          }
+          if (panNo) {
+            updateData.panNo = panNo.trim();
+          }
           if (experience) {
             updateData.experience = experience.trim();
           }
@@ -227,6 +288,110 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
             />
           </View>
 
+          {/* Date of Birth */}
+          <DatePickerInput
+            label="Date of Birth"
+            value={dob}
+            onChange={setDob}
+            placeholder="Select your date of birth"
+            maximumDate={new Date()}
+          />
+
+          {/* Gender */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Gender</Text>
+            <View style={styles.genderContainer}>
+              {['Male', 'Female', 'Other'].map((g) => (
+                <TouchableOpacity
+                  key={g}
+                  style={[styles.genderButton, gender === g && styles.genderButtonSelected]}
+                  onPress={() => setGender(g)}
+                >
+                  <Text style={[styles.genderText, gender === g && styles.genderTextSelected]}>{g}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Mother Tongue */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Mother Tongue</Text>
+            <TextInput
+              style={styles.input}
+              value={motherTongue}
+              onChangeText={setMotherTongue}
+              placeholder="e.g., Hindi, English, Marathi"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          {/* Preferred Languages */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Preferred Languages</Text>
+            <TextInput
+              style={styles.input}
+              value={preferredLanguages}
+              onChangeText={setPreferredLanguages}
+              placeholder="e.g., English, Hindi, Marathi"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          {/* Contact Number */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Contact Number</Text>
+            <TextInput
+              style={styles.input}
+              value={contactNo}
+              onChangeText={setContactNo}
+              placeholder="Enter your contact number"
+              placeholderTextColor="#999"
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          {/* Alternate Contact Number */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Alternate Contact Number</Text>
+            <TextInput
+              style={styles.input}
+              value={altContactNo}
+              onChangeText={setAltContactNo}
+              placeholder="Enter alternate contact number"
+              placeholderTextColor="#999"
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          {/* Email */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Enter your email"
+              placeholderTextColor="#999"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          {/* Address */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Address</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={address}
+              onChangeText={setAddress}
+              placeholder="Enter your full address"
+              placeholderTextColor="#999"
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+          </View>
+
           {/* About */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>About</Text>
@@ -299,6 +464,46 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
           {/* Walker-specific fields */}
           {userRole === 'walker' && (
             <>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Alternate Address</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={altAddress}
+                  onChangeText={setAltAddress}
+                  placeholder="Enter alternate address"
+                  placeholderTextColor="#999"
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Aadhar Number</Text>
+                <TextInput
+                  style={styles.input}
+                  value={aadharNo}
+                  onChangeText={setAadharNo}
+                  placeholder="Enter your 12-digit Aadhar number"
+                  placeholderTextColor="#999"
+                  keyboardType="numeric"
+                  maxLength={12}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>PAN Number</Text>
+                <TextInput
+                  style={styles.input}
+                  value={panNo}
+                  onChangeText={setPanNo}
+                  placeholder="Enter your PAN number"
+                  placeholderTextColor="#999"
+                  autoCapitalize="characters"
+                  maxLength={10}
+                />
+              </View>
+
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Experience</Text>
                 <TextInput
@@ -446,6 +651,32 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 100,
     paddingTop: 14,
+  },
+  genderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  genderButton: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  genderButtonSelected: {
+    backgroundColor: '#000000',
+    borderColor: '#000000',
+  },
+  genderText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  genderTextSelected: {
+    color: '#FFFFFF',
   },
   saveButton: {
     backgroundColor: '#000000',

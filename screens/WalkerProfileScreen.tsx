@@ -258,14 +258,18 @@ const WalkerProfileScreen: React.FC<WalkerProfileScreenProps> = ({ navigation, r
 
           {/* Details Section */}
           <View style={styles.detailsSection}>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Pace</Text>
-              <Text style={styles.detailValue}>{walker.walkingPace || 'Moderate'}</Text>
-            </View>
-            {walker.languages && (
+            {(walker as any).dob && (
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Languages</Text>
-                <Text style={styles.detailValue}>{walker.languages}</Text>
+                <Text style={styles.detailLabel}>Date of Birth</Text>
+                <Text style={styles.detailValue}>
+                  {new Date((walker as any).dob).toLocaleDateString()}
+                </Text>
+              </View>
+            )}
+            {(walker as any).gender && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Gender</Text>
+                <Text style={styles.detailValue}>{(walker as any).gender}</Text>
               </View>
             )}
             {walker.age && (
@@ -274,6 +278,36 @@ const WalkerProfileScreen: React.FC<WalkerProfileScreenProps> = ({ navigation, r
                 <Text style={styles.detailValue}>{walker.age}</Text>
               </View>
             )}
+            {(walker as any).motherTongue && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Mother Tongue</Text>
+                <Text style={styles.detailValue}>{(walker as any).motherTongue}</Text>
+              </View>
+            )}
+            {((walker as any).preferredLanguage || walker.languages) && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Preferred Languages</Text>
+                <Text style={styles.detailValue}>
+                  {(walker as any).preferredLanguage || walker.languages}
+                </Text>
+              </View>
+            )}
+            {(walker as any).contactNo && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Contact Number</Text>
+                <Text style={styles.detailValue}>{(walker as any).contactNo}</Text>
+              </View>
+            )}
+            {walker.email && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Email</Text>
+                <Text style={styles.detailValue}>{walker.email}</Text>
+              </View>
+            )}
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Pace</Text>
+              <Text style={styles.detailValue}>{walker.walkingPace || 'Moderate'}</Text>
+            </View>
             {walker.hobbies && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Hobbies</Text>

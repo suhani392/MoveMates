@@ -15,6 +15,8 @@ interface User {
   email: string;
   role: string;
   approved: boolean;
+  rejected?: boolean;
+  rejectionReason?: string;
   createdAt: any;
 }
 
@@ -86,11 +88,41 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
   const fetchUsers = async () => {
     try {
       const usersSnapshot = await getDocs(collection(db, 'users'));
-      const usersList = usersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as User[];
-      setUsers(usersList);
+      const usersList = usersSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name || '',
+          email: data.email || '',
+          role: data.role || 'wanderer',
+          approved: data.approved || false,
+          rejected: data.rejected || false,
+          rejectionReason: data.rejectionReason || '',
+          createdAt: data.createdAt || null,
+          // Include all user data to ensure profile photos are available
+          ...data,
+          // Ensure these fields are not overridden by spread
+          id: doc.id,
+          name: data.name || '',
+          email: data.email || '',
+          role: data.role || 'wanderer',
+          approved: data.approved || false,
+          rejected: data.rejected || false,
+          rejectionReason: data.rejectionReason || '',
+          createdAt: data.createdAt || null
+        } as User & { [key: string]: any }; // Allow additional properties
+      });
+      
+      // Filter out rejected walkers from the main list
+      const filteredUsers = usersList.filter(user => {
+        // Only include walkers that are not rejected
+        if (user.role === 'walker') {
+          return user.rejected !== true;
+        }
+        return true; // Include all non-walker users
+      });
+      
+      setUsers(filteredUsers);
     } catch (error) {
       Alert.alert('Error', 'Failed to fetch users');
     } finally {
@@ -175,15 +207,55 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
     setSearchMode(false);
   };
 
-  const handleApproveWalker = async (userId: string, approved: boolean) => {
+  const handleApproveWalker = async (userId: string, approve: boolean) => {
     try {
-      await updateDoc(doc(db, 'users', userId), { approved });
-      Alert.alert('Success', `Walker ${approved ? 'approved' : 'rejected'}`);
-      setDecisions(prev => ({ ...prev, [userId]: approved ? 'approved' : 'rejected' }));
+      const userRef = doc(db, 'users', userId);
+      
+      if (approve) {
+        await updateDoc(userRef, { 
+          approved: true,
+          rejected: false,
+          rejectionReason: '',
+          updatedAt: serverTimestamp()
+        });
+        
+        // Log the approval
+        try {
+          await addDoc(collection(db, 'audit_logs'), {
+            action: 'walker.approved',
+            userId: userId,
+            adminId: auth.currentUser?.uid || 'admin',
+            timestamp: serverTimestamp()
+          });
+        } catch (e) {
+          console.error('Failed to log approval:', e);
+        }
+        
+        Alert.alert('Success', 'Walker has been approved');
+      } else {
+        // For rejection, we'll handle it through the removal modal
+        const userDoc = await getDoc(userRef);
+        if (userDoc.exists()) {
+          setSelectedUserForRemoval({
+            id: userId,
+            name: userDoc.data().name || 'Unknown User',
+            email: userDoc.data().email || '',
+            role: userDoc.data().role || 'walker',
+            approved: false,
+            rejected: false,
+            createdAt: userDoc.data().createdAt || null
+          });
+          setRejectReason('');
+          setRemovalModalVisible(true);
+        }
+        return;
+      }
+      
+      await fetchUsers(); // Wait for the update to complete
       try {
         await addDoc(collection(db, 'audit_logs'), {
           actorId: auth.currentUser?.uid || 'admin',
-          action: approved ? 'user.approve' : 'user.reject',
+          action: approve ? 'user.approve' : 'user.reject',
           targetType: 'user',
           targetId: userId,
           timestamp: serverTimestamp(),
@@ -195,22 +267,87 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
     }
   };
 
+  const handleRejectWalker = async (userId: string) => {
+    if (!rejectReason.trim()) {
+      Alert.alert('Error', 'Please provide a reason for rejection');
+      return;
+    }
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, { 
+        approved: false,
+        rejected: true,
+        rejectionReason: rejectReason.trim(),
+        updatedAt: serverTimestamp()
+      });
+      
+      // Add to audit log
+      try {
+        await addDoc(collection(db, 'audit_logs'), {
+          action: 'walker.rejected',
+          userId: userId,
+          adminId: auth.currentUser?.uid || 'admin',
+          reason: rejectReason.trim(),
+          timestamp: serverTimestamp()
+        });
+      } catch (e) {
+        console.error('Failed to log rejection:', e);
+      }
+      
+      setRejectReason('');
+      setRemovalModalVisible(false);
+      Alert.alert('Success', 'Walker has been moved to Rejected Walkers');
+      await fetchUsers(); // Wait for the update to complete
+    } catch (error) {
+      console.error('Error rejecting walker:', error);
+      Alert.alert('Error', 'Failed to reject walker');
+    }
+  };
+
+  const navigateToRejectedWalkers = () => {
+    navigation.navigate('RejectedWalkers');
+    closeDrawer();
+  };
+
   const handleSignOut = async () => {
     await authService.signOut();
   };
 
-  const getUserPhotoUrl = (u: any): string | null => {
-    if (!u) return null;
-    const keys = [
-      'profileImage', 'profileImageUrl', 'image', 'photoURL', 'photoUrl', 'avatar', 'avatarUrl', 'profilePic', 'profile_picture', 'profile_photo_url', 'imageUrl', 'picture', 'pic'
-    ];
-    for (const k of keys) {
-      const v = u?.[k];
-      if (typeof v === 'string' && v.length > 0) return v;
+  const getUserPhotoUrl = (user: any): string | null => {
+    if (!user) return null;
+    
+    // Check common profile photo fields in order of priority
+    const photoUrl = user.photoURL || 
+                    user.profileImage || 
+                    user.image || 
+                    user.avatar || 
+                    user.profilePic || 
+                    user.picture ||
+                    user.photoUrl ||
+                    user.avatarUrl ||
+                    user.profileImageUrl ||
+                    user.profile_photo_url ||
+                    user.imageUrl ||
+                    user.pic;
+    
+    if (photoUrl && typeof photoUrl === 'string' && photoUrl.length > 0) {
+      return photoUrl;
     }
-    // arrays like images/photos
-    if (Array.isArray(u?.images) && u.images[0]) return u.images[0];
-    if (Array.isArray(u?.photos) && u.photos[0]) return u.photos[0];
+    
+    // Check for nested photo in profile object
+    if (user.profile?.photoURL) {
+      return user.profile.photoURL;
+    }
+    
+    // Check for array of images
+    if (Array.isArray(user.images) && user.images.length > 0) {
+      return user.images[0];
+    }
+    
+    if (Array.isArray(user.photos) && user.photos.length > 0) {
+      return user.photos[0];
+    }
+    
     return null;
   };
 
@@ -239,18 +376,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
       } else {
         Alert.alert('No photo', 'This user has not set a profile photo.');
       }
-      setTapCount(0);
-      setLastTappedUserId(null);
     }
   };
 
-  const openDrawer = () => {
-    setMenuVisible(true);
+  const handleQuizApproveReject = async (userId: string, approved: boolean) => {
+    try {
+      const userDoc = doc(db, 'users', userId);
+      await updateDoc(userDoc, {
+        approved: approved,
+        rejected: !approved,
+        rejectionReason: !approved ? rejectReason || 'Test score too low' : '',
+        updatedAt: serverTimestamp()
+      });
+      
+      setResultModal({ visible: false, userId: '' });
+      setRejectReason('');
+      
+      // Refresh users list
+      fetchUsers();
+      
+      Alert.alert(
+        'Success', 
+        approved ? 'Walker approved successfully' : 'Walker rejected successfully'
+      );
+    } catch (error) {
+      console.error('Error updating walker status:', error);
+      Alert.alert('Error', 'Failed to update walker status');
+    }
   };
 
-  const closeDrawer = () => {
-    setMenuVisible(false);
-  };
+  const openDrawer = () => setMenuVisible(true);
+  const closeDrawer = () => setMenuVisible(false);
+  const toggleDrawer = () => setMenuVisible(prev => !prev);
 
   // Group users by role for sectioned display (exclude removed)
   const admins = users.filter(u => u.role === 'admin' && (u as any).status !== 'removed');
@@ -263,10 +420,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
         <Text>Loading users...</Text>
       </SafeAreaView>
     );
-  }
 
   return (
-    <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={toggleDrawer}>
+          <MaterialIcons name="menu" size={28} color="#000" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle as any}>Admin Dashboard</Text>
+        <View style={{ width: 28 }} />
+      </View>
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>
@@ -416,14 +580,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
           <View style={[styles.userCard, styles.adminCard]}>
             <View style={styles.avatarRow}>
               <View style={styles.avatarCircle}>
-                { getUserPhotoUrl(user as any) ? (
-                  <Image
-                    source={{ uri: getUserPhotoUrl(user as any) as string }}
-                    style={styles.avatarImg}
-                  />
-                ) : (
-                  <MaterialIcons name="person" size={28} color="#666" />
-                )}
+                {(() => {
+                  const photoUrl = getUserPhotoUrl(user);
+                  return photoUrl ? (
+                    <Image
+                      source={{ uri: photoUrl }}
+                      style={styles.avatarImg}
+                      onError={(e) => {
+                        console.log('Failed to load image:', e.nativeEvent.error);
+                      }}
+                    />
+                  ) : (
+                    <MaterialIcons name="person" size={28} color="#666" />
+                  );
+                })()}
               </View>
               <View style={{ marginLeft: 10, flex: 1 }}>
                 <Text style={styles.userCardName}>{user.name}</Text>
@@ -460,14 +630,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
           <View style={[styles.userCard, styles.walkerCard]}>
             <View style={styles.avatarRow}>
               <View style={styles.avatarCircle}>
-                {(user as any)?.profileImage || (user as any)?.image || (user as any)?.photoURL ? (
-                  <Image
-                    source={{ uri: ((user as any).profileImage || (user as any).image || (user as any).photoURL) }}
-                    style={styles.avatarImg}
-                  />
-                ) : (
-                  <MaterialIcons name="person" size={24} color="#666" />
-                )}
+                {(() => {
+                  const photoUrl = getUserPhotoUrl(user);
+                  return photoUrl ? (
+                    <Image
+                      source={{ uri: photoUrl }}
+                      style={styles.avatarImg}
+                      onError={(e) => {
+                        console.log('Failed to load image:', e.nativeEvent.error);
+                      }}
+                    />
+                  ) : (
+                    <MaterialIcons name="person" size={24} color="#666" />
+                  );
+                })()}
               </View>
               <View style={{ marginLeft: 10, flex: 1 }}>
                 <Text style={styles.userCardName}>{user.name}</Text>
@@ -502,7 +678,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
             )}
-            <View style={{ alignItems: 'flex-end', marginTop: 8 }}>
+            <View style={styles.cardFooter}>
+              <TouchableOpacity 
+                style={styles.viewResultsButton}
+                onPress={() => navigation.navigate('WalkerTestResults', { userId: user.id })}
+              >
+                <Text style={styles.viewResultsText}>View Results</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => navigation.navigate('UserDetails', { userId: user.id, role: user.role })}>
                 <Text style={styles.moreDetails}>more details</Text>
               </TouchableOpacity>
@@ -533,14 +715,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
           <View style={[styles.userCard, styles.wandererCard]}>
             <View style={styles.avatarRow}>
               <View style={styles.avatarCircle}>
-                {(user as any)?.profileImage || (user as any)?.image || (user as any)?.photoURL ? (
-                  <Image
-                    source={{ uri: ((user as any).profileImage || (user as any).image || (user as any).photoURL) }}
-                    style={styles.avatarImg}
-                  />
-                ) : (
-                  <MaterialIcons name="person" size={24} color="#666" />
-                )}
+                {(() => {
+                  const photoUrl = getUserPhotoUrl(user);
+                  return photoUrl ? (
+                    <Image
+                      source={{ uri: photoUrl }}
+                      style={styles.avatarImg}
+                      onError={(e) => {
+                        console.log('Failed to load image:', e.nativeEvent.error);
+                      }}
+                    />
+                  ) : (
+                    <MaterialIcons name="person" size={24} color="#666" />
+                  );
+                })()}
               </View>
               <View style={{ marginLeft: 10, flex: 1 }}>
                 <Text style={styles.userCardName}>{user.name}</Text>
@@ -611,137 +799,156 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
         <View style={styles.overlay}>
           <View style={styles.drawer}>
             {/* Profile Header */}
-            <TouchableOpacity 
-              style={styles.profileHeader} 
-              onPress={() => {
-                closeDrawer();
-                // Could navigate to admin profile if needed
-                navigation.navigate('Profile');
-              }}
-            >
-              <View style={styles.profileCircle}>
-                {userData?.profileImage || userData?.image ? (
-                  <Image
-                    source={{ uri: (userData.profileImage || userData.image) }}
-                    style={{ width: 70, height: 70, borderRadius: 35 }}
-                  />
-                ) : (
-                  <MaterialIcons name="person" size={40} color="#666" />
-                )}
-              </View>
-              <Text style={styles.userName}>{userData?.name || 'Admin'}</Text>
-            </TouchableOpacity>
+            <View style={styles.profileHeader}>
+              <TouchableOpacity 
+                style={{flexDirection: 'row', alignItems: 'center'}}
+                onPress={() => {
+                  closeDrawer();
+                  navigation.navigate('Profile');
+                }}
+              >
+                <View style={styles.profileCircle}>
+                  {userData?.profileImage || userData?.image ? (
+                    <Image
+                      source={{ uri: (userData.profileImage || userData.image) }}
+                      style={{ width: 70, height: 70, borderRadius: 35 }}
+                    />
+                  ) : (
+                    <MaterialIcons name="person" size={40} color="#666" />
+                  )}
+                </View>
+                <Text style={styles.userName}>{userData?.name || 'Admin'}</Text>
+              </TouchableOpacity>
+            </View>
 
-            {/* Menu Items */}
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-              }}
+            {/* Scrollable Menu Items */}
+            <ScrollView 
+              style={styles.drawerScrollView as any}
+              contentContainerStyle={styles.drawerContentContainer as any}
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.drawerText}>Home</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.drawerItem} 
+                onPress={() => { 
+                  closeDrawer();
+                }}
+              >
+                <Text style={styles.drawerText}>Home</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-                navigation.navigate('Notifications');
-              }}
-            >
-              <Text style={styles.drawerText}>Notifications</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.drawerItem} 
+                onPress={() => { 
+                  closeDrawer();
+                  navigation.navigate('Notifications');
+                }}
+              >
+                <Text style={styles.drawerText}>Notifications</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-                navigation.navigate('RemovedUsers');
-              }}
-            >
-              <Text style={styles.drawerText}>Removed Users</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.drawerItem} 
+                onPress={() => { 
+                  closeDrawer();
+                  navigation.navigate('RemovedUsers');
+                }}
+              >
+                <Text style={styles.drawerText}>Removed Users</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-                navigation.navigate('AuditLogs');
-              }}
-            >
-              <Text style={styles.drawerText}>Audit Logs</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.drawerItem} 
+                onPress={() => { 
+                  closeDrawer();
+                  navigation.navigate('RejectedWalkers');
+                }}
+              >
+                <Text style={styles.drawerText}>Rejected Walkers</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-                navigation.navigate('Analytics');
-              }}
-            >
-              <Text style={styles.drawerText}>Analytics</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.drawerItem} 
+                onPress={() => { 
+                  closeDrawer();
+                  navigation.navigate('AuditLogs');
+                }}
+              >
+                <Text style={styles.drawerText}>Audit Logs</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-                navigation.navigate('AdminPayments');
-              }}
-            >
-              <Text style={styles.drawerText}>Payments</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.drawerItem} 
+                onPress={() => { 
+                  closeDrawer();
+                  navigation.navigate('Analytics');
+                }}
+              >
+                <Text style={styles.drawerText}>Analytics</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-                navigation.navigate('ContactUs');
-              }}
-            >
-              <Text style={styles.drawerText}>Contact Us</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.drawerItem} 
+                onPress={() => { 
+                  closeDrawer();
+                  navigation.navigate('AdminPayments');
+                }}
+              >
+                <Text style={styles.drawerText}>Payments</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-                navigation.navigate('HelpPolicy');
-              }}
-            >
-              <Text style={styles.drawerText}>Help & Policy</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.drawerItem} 
+                onPress={() => { 
+                  closeDrawer();
+                  navigation.navigate('ContactUs');
+                }}
+              >
+                <Text style={styles.drawerText}>Contact Us</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-                navigation.navigate('Settings');
-              }}
-            >
-              <Text style={styles.drawerText}>Settings</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.drawerItem} 
+                onPress={() => { 
+                  closeDrawer();
+                  navigation.navigate('HelpPolicy');
+                }}
+              >
+                <Text style={styles.drawerText}>Help & Policy</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.drawerItem} 
-              onPress={() => { 
-                closeDrawer();
-                navigation.navigate('About');
-              }}
-            >
-              <Text style={styles.drawerText}>About</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.drawerItem} 
+                onPress={() => { 
+                  closeDrawer();
+                  navigation.navigate('Settings');
+                }}
+              >
+                <Text style={styles.drawerText}>Settings</Text>
+              </TouchableOpacity>
 
-            {/* Logout */}
-            <TouchableOpacity 
-              style={[styles.drawerItem, styles.logoutItem]} 
-              onPress={() => { 
-                closeDrawer();
-                handleSignOut();
-              }}
-            >
-              <Text style={styles.logoutText}>Logout</Text>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.drawerItem} 
+                onPress={() => { 
+                  closeDrawer();
+                  navigation.navigate('About');
+                }}
+              >
+                <Text style={styles.drawerText}>About</Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            {/* Fixed Logout Button */}
+            <View style={styles.logoutContainer as any}>
+              <TouchableOpacity 
+                style={styles.logoutButton as any} 
+                onPress={() => { 
+                  closeDrawer();
+                  setTimeout(() => handleSignOut(), 300);
+                }}
+              >
+                <Text style={styles.logoutText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -778,6 +985,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
                       removedReason: removalReason || 'No reason specified',
                       removedAt: serverTimestamp(),
                       removedBy: (auth.currentUser && auth.currentUser.uid) || 'admin',
+                      // Ensure these fields are properly set if this is a rejection
+                      approved: false,
+                      rejected: true,
+                      rejectionReason: removalReason || 'No reason specified',
+                      updatedAt: serverTimestamp()
                     });
                     try {
                       await addDoc(collection(db, 'audit_logs'), {
@@ -1004,15 +1216,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   avatarCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#f0f0f0',
+    resizeMode: 'cover',
   },
   avatarImg: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#f0f0f0',
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
@@ -1072,6 +1286,41 @@ const styles = StyleSheet.create({
   moreDetails: {
     color: '#1E88E5',
     fontWeight: '700',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  viewResultsButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: '#4CAF50',
+    borderRadius: 4,
+  },
+  viewResultsText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  viewResultsButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: '#4CAF50',
+    borderRadius: 4,
+  },
+  viewResultsText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 12,
   },
   // Analytics Section
   analyticsSection: {

@@ -106,39 +106,108 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
         {/* Information Sections */}
         <View style={styles.infoContainer}>
-          {/* About Section */}
+          {/* Personal Information */}
           <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>About</Text>
-            <Text style={styles.sectionContent}>
-              {userData.about || 'No information provided.'}
-            </Text>
+            <Text style={styles.sectionTitle}>Personal Information</Text>
+            {userData.dob && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Date of Birth:</Text>
+                <Text style={styles.sectionContent}>
+                  {new Date(userData.dob).toLocaleDateString()}
+                </Text>
+              </View>
+            )}
+            {userData.gender && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Gender:</Text>
+                <Text style={styles.sectionContent}>{userData.gender}</Text>
+              </View>
+            )}
+            {userData.age && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Age:</Text>
+                <Text style={styles.sectionContent}>{userData.age}</Text>
+              </View>
+            )}
           </View>
 
-          {/* Languages Section */}
+          {/* Contact Information */}
           <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>Languages</Text>
-            <Text style={styles.sectionContent}>
-              {userData.languages || 'Not specified'}
-            </Text>
+            <Text style={styles.sectionTitle}>Contact Information</Text>
+            {userData.contactNo && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Contact Number:</Text>
+                <Text style={styles.sectionContent}>{userData.contactNo}</Text>
+              </View>
+            )}
+            {userData.altContactNo && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Alternate Contact:</Text>
+                <Text style={styles.sectionContent}>{userData.altContactNo}</Text>
+              </View>
+            )}
+            {userData.email && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Email:</Text>
+                <Text style={styles.sectionContent}>{userData.email}</Text>
+              </View>
+            )}
+            {userData.address && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Address:</Text>
+                <Text style={styles.sectionContent}>{userData.address}</Text>
+              </View>
+            )}
           </View>
+
+          {/* Language Preferences */}
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>Language Preferences</Text>
+            {userData.motherTongue && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Mother Tongue:</Text>
+                <Text style={styles.sectionContent}>{userData.motherTongue}</Text>
+              </View>
+            )}
+            {(userData.preferredLanguage || userData.languages) && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Preferred Languages:</Text>
+                <Text style={styles.sectionContent}>
+                  {userData.preferredLanguage || userData.languages}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* About Section */}
+          {userData.about && (
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionTitle}>About</Text>
+              <Text style={styles.sectionContent}>
+                {userData.about}
+              </Text>
+            </View>
+          )}
 
           {/* Pace Section - Only for Wanderers and Walkers */}
-          {(userData.role === 'wanderer' || userData.role === 'walker') && (
+          {(userData.role === 'wanderer' || userData.role === 'walker') && userData.walkingPace && (
             <View style={styles.infoSection}>
-              <Text style={styles.sectionTitle}>Pace</Text>
+              <Text style={styles.sectionTitle}>Walking Pace</Text>
               <Text style={styles.sectionContent}>
-                {userData.walkingPace || userData.pace || 'Not specified'}
+                {userData.walkingPace || userData.pace}
               </Text>
             </View>
           )}
 
           {/* Hobbies Section */}
-          <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>Hobbies</Text>
-            <Text style={styles.sectionContent}>
-              {userData.hobbies || 'Not specified'}
-            </Text>
-          </View>
+          {userData.hobbies && (
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionTitle}>Hobbies</Text>
+              <Text style={styles.sectionContent}>
+                {userData.hobbies}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Edit Prompt */}
@@ -251,7 +320,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#000000',
-    marginBottom: 8,
+    marginBottom: 12,
+  },
+  infoRow: {
+    marginBottom: 12,
+  },
+  infoLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666666',
+    marginBottom: 4,
   },
   sectionContent: {
     fontSize: 15,

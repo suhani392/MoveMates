@@ -13,6 +13,7 @@ import WalkerHomeScreen from '../screens/WalkerHomeScreen';
 import PermissionsScreen from '../screens/PermissionsScreen';
 import AdminDashboard from '../screens/AdminDashboard';
 import PendingApprovalScreen from '../screens/PendingApprovalScreen';
+import RejectedWalkersScreen from '../screens/RejectedWalkersScreen';
 import HelpPolicyScreen from '../screens/HelpPolicyScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
@@ -168,6 +169,7 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="WandererHome" component={WandererHomeScreen} />
       <Stack.Screen name="WalkerHome" component={WalkerHomeScreen} />
       <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
+      <Stack.Screen name="RejectedWalkers" component={RejectedWalkersScreen} />
       <Stack.Screen name="PendingApproval" component={PendingApprovalScreen} />
       <Stack.Screen name="HelpPolicy" component={HelpPolicyScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />

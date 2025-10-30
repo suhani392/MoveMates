@@ -2,12 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Dimensions, ScrollView, Image, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { MaterialIcons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import Constants from 'expo-constants';
 import { authService } from '../services/authService';
-
-WebBrowser.maybeCompleteAuthSession();
 
 type SignUpScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -25,27 +20,6 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const extra = (Constants?.expoConfig as any)?.extra?.googleOAuth || {};
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: extra.webClientId,
-    iosClientId: extra.iosClientId,
-    androidClientId: extra.androidClientId,
-  });
-
-  useEffect(() => {
-    const handleGoogleResponse = async () => {
-      if (response?.type === 'success') {
-        const idToken = (response.params as any)?.id_token;
-        if (idToken) {
-          const res = await authService.signInWithGoogleCredential(idToken);
-          if (!res.success) {
-            Alert.alert('Error', res.error || 'Failed to sign up with Google');
-          }
-        }
-      }
-    };
-    handleGoogleResponse();
-  }, [response]);
 
   const handleSignUp = () => {
     // Basic validation
@@ -174,28 +148,6 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.dividerContainer}>
-          <View style={styles.divider} />
-        </View>
-
-        <TouchableOpacity style={styles.googleButton} onPress={() => {
-          if (!extra?.webClientId) {
-            Alert.alert('Google Sign-In not configured', 'Please set googleOAuth client IDs in app.json');
-            return;
-          }
-          if (!request) {
-            Alert.alert('Please wait', 'Google sign-in is initializing. Try again in a second.');
-            return;
-          }
-          promptAsync();
-        }}>
-          <Image 
-            source={{ uri: 'https://www.google.com/favicon.ico' }}
-            style={styles.googleIcon}
-          />
-          <Text style={styles.googleButtonText}>Sign up using Google</Text>
-        </TouchableOpacity>
-
         <View style={styles.loginContainer}>
           <Text style={styles.loginText}>Already have an account?</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Login')}>
@@ -283,34 +235,6 @@ const styles = StyleSheet.create({
   signupButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: '600',
-  },
-  dividerContainer: {
-    marginVertical: 30,
-    alignItems: 'center',
-  },
-  divider: {
-    width: width - 100,
-    height: 1,
-    backgroundColor: '#000000',
-  },
-  googleButton: {
-    backgroundColor: '#000000',
-    borderRadius: 30,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 30,
-  },
-  googleIcon: {
-    width: 24,
-    height: 24,
-    marginRight: 12,
-  },
-  googleButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
     fontWeight: '600',
   },
   loginContainer: {

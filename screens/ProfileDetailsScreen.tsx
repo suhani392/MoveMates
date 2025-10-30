@@ -6,6 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { authService } from '../services/authService';
 import { RootStackParamList } from '../App';
+import DatePickerInput from '../components/DatePickerInput';
 
 type ProfileDetailsScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'ProfileDetails'>;
@@ -16,6 +17,14 @@ const ProfileDetailsScreen: React.FC<ProfileDetailsScreenProps> = ({ navigation,
   const { userData, selectedRole } = route.params;
   
   // Common fields for both roles
+  const [dob, setDob] = useState<Date | null>(null);
+  const [gender, setGender] = useState('');
+  const [motherTongue, setMotherTongue] = useState('');
+  const [preferredLanguages, setPreferredLanguages] = useState('');
+  const [contactNo, setContactNo] = useState('');
+  const [altContactNo, setAltContactNo] = useState('');
+  const [email, setEmail] = useState(userData.email || '');
+  const [address, setAddress] = useState('');
   const [age, setAge] = useState('');
   const [walkingPace, setWalkingPace] = useState('');
   const [hobbies, setHobbies] = useState('');
@@ -23,6 +32,9 @@ const ProfileDetailsScreen: React.FC<ProfileDetailsScreenProps> = ({ navigation,
   const [about, setAbout] = useState('');
   
   // Walker-specific fields
+  const [altAddress, setAltAddress] = useState('');
+  const [aadharNo, setAadharNo] = useState('');
+  const [panNo, setPanNo] = useState('');
   const [pricePerHour, setPricePerHour] = useState('');
   const [documents, setDocuments] = useState<any[]>([]);
   const [experience, setExperience] = useState('');
@@ -54,15 +66,18 @@ const ProfileDetailsScreen: React.FC<ProfileDetailsScreenProps> = ({ navigation,
   };
 
   const handleSubmit = async () => {
-    // Validation
-    if (!age || !walkingPace || !hobbies || !languages || !about) {
+    // Validation for common fields
+    if (!dob || !gender || !motherTongue || !preferredLanguages || !contactNo || !email || !address) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
-    if (selectedRole === 'walker' && (!pricePerHour || documents.length === 0)) {
-      Alert.alert('Error', 'Please set your price and upload at least one document');
-      return;
+    // Walker-specific validation
+    if (selectedRole === 'walker') {
+      if (!aadharNo || !panNo || !pricePerHour || documents.length === 0) {
+        Alert.alert('Error', 'Walkers must provide Aadhar, PAN, price, and upload at least one document');
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -72,14 +87,25 @@ const ProfileDetailsScreen: React.FC<ProfileDetailsScreenProps> = ({ navigation,
       name: `${userData.firstName} ${userData.lastName}`,
       phone: userData.phoneNumber,
       role: selectedRole,
-      age: parseInt(age),
-      walkingPace,
-      hobbies,
-      languages,
-      about,
+      dob: dob.toISOString().split('T')[0], // Store as YYYY-MM-DD
+      gender,
+      motherTongue,
+      preferredLanguage: preferredLanguages,
+      contactNo,
+      altContactNo: altContactNo || '',
+      email,
+      address,
+      age: age ? parseInt(age) : undefined,
+      walkingPace: walkingPace || '',
+      hobbies: hobbies || '',
+      languages: languages || '',
+      about: about || '',
       ...(selectedRole === 'walker' && {
+        altAddress: altAddress || '',
+        aadharNo,
+        panNo,
         pricePerHour: parseFloat(pricePerHour),
-        experience,
+        experience: experience || '',
         documents: documents.map(doc => doc.name),
       }),
     };
@@ -110,13 +136,105 @@ const ProfileDetailsScreen: React.FC<ProfileDetailsScreenProps> = ({ navigation,
         </Text>
 
         <View style={styles.formContainer}>
-          {/* Age */}
-          <Text style={styles.label}>Age <Text style={styles.required}>*</Text></Text>
+          {/* Date of Birth */}
+          <DatePickerInput
+            label="Date of Birth"
+            value={dob}
+            onChange={setDob}
+            placeholder="Select your date of birth"
+            required
+            maximumDate={new Date()}
+          />
+
+          {/* Gender */}
+          <Text style={styles.label}>Gender <Text style={styles.required}>*</Text></Text>
+          <View style={styles.genderContainer}>
+            {['Male', 'Female', 'Other'].map((g) => (
+              <TouchableOpacity
+                key={g}
+                style={[styles.genderButton, gender === g && styles.genderButtonSelected]}
+                onPress={() => setGender(g)}
+              >
+                <Text style={[styles.genderText, gender === g && styles.genderTextSelected]}>{g}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Mother Tongue */}
+          <Text style={styles.label}>Mother Tongue <Text style={styles.required}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            value={motherTongue}
+            onChangeText={setMotherTongue}
+            placeholder="e.g., Hindi, English, Marathi"
+            placeholderTextColor="#999"
+          />
+
+          {/* Preferred Languages */}
+          <Text style={styles.label}>Preferred Languages <Text style={styles.required}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            value={preferredLanguages}
+            onChangeText={setPreferredLanguages}
+            placeholder="e.g., English, Hindi, Marathi"
+            placeholderTextColor="#999"
+          />
+
+          {/* Contact Number */}
+          <Text style={styles.label}>Contact Number <Text style={styles.required}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            value={contactNo}
+            onChangeText={setContactNo}
+            placeholder="Enter your contact number"
+            placeholderTextColor="#999"
+            keyboardType="phone-pad"
+          />
+
+          {/* Alternate Contact Number */}
+          <Text style={styles.label}>Alternate Contact Number</Text>
+          <TextInput
+            style={styles.input}
+            value={altContactNo}
+            onChangeText={setAltContactNo}
+            placeholder="Enter alternate contact number"
+            placeholderTextColor="#999"
+            keyboardType="phone-pad"
+          />
+
+          {/* Email */}
+          <Text style={styles.label}>Email <Text style={styles.required}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="Enter your email"
+            placeholderTextColor="#999"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            editable={false}
+          />
+
+          {/* Address */}
+          <Text style={styles.label}>Address <Text style={styles.required}>*</Text></Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={address}
+            onChangeText={setAddress}
+            placeholder="Enter your full address"
+            placeholderTextColor="#999"
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
+
+          {/* Age (Optional) */}
+          <Text style={styles.label}>Age</Text>
           <TextInput
             style={styles.input}
             value={age}
             onChangeText={setAge}
-            placeholder="Enter your age"
+            placeholder="Enter your age (optional)"
             placeholderTextColor="#999"
             keyboardType="numeric"
           />
@@ -167,6 +285,43 @@ const ProfileDetailsScreen: React.FC<ProfileDetailsScreenProps> = ({ navigation,
           {/* Walker-specific fields */}
           {selectedRole === 'walker' && (
             <>
+              {/* Alternate Address */}
+              <Text style={styles.label}>Alternate Address</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={altAddress}
+                onChangeText={setAltAddress}
+                placeholder="Enter alternate address (optional)"
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+
+              {/* Aadhar Number */}
+              <Text style={styles.label}>Aadhar Number <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={styles.input}
+                value={aadharNo}
+                onChangeText={setAadharNo}
+                placeholder="Enter your 12-digit Aadhar number"
+                placeholderTextColor="#999"
+                keyboardType="numeric"
+                maxLength={12}
+              />
+
+              {/* PAN Number */}
+              <Text style={styles.label}>PAN Number <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={styles.input}
+                value={panNo}
+                onChangeText={setPanNo}
+                placeholder="Enter your PAN number"
+                placeholderTextColor="#999"
+                autoCapitalize="characters"
+                maxLength={10}
+              />
+
               {/* Experience */}
               <Text style={styles.label}>Experience</Text>
               <TextInput
@@ -292,6 +447,30 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingTop: 16,
     minHeight: 100,
+  },
+  genderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  genderButton: {
+    flex: 1,
+    backgroundColor: '#D9D9D9',
+    borderRadius: 25,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  genderButtonSelected: {
+    backgroundColor: '#000000',
+  },
+  genderText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  genderTextSelected: {
+    color: '#FFFFFF',
   },
   uploadButton: {
     backgroundColor: '#D9D9D9',
