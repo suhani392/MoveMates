@@ -210,7 +210,7 @@ const AdminPaymentsScreen: React.FC<AdminPaymentsScreenProps> = ({ navigation })
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>

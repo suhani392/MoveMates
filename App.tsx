@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Image } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { ToastProvider, useToast } from './contexts/ToastContext';
 import AuthNavigator from './components/AuthNavigator';
 
 // Import all your existing screens
@@ -22,6 +23,8 @@ import GetStartedScreen from './screens/GetStartedScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import HelpPolicyScreen from './screens/HelpPolicyScreen';
 import WalkerTestScreen from './screens/WalkerTestScreen';
+import { db, auth } from './firebaseConfig';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -69,6 +72,35 @@ export type RootStackParamList = {
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
+
+function NotificationListener() {
+  const { showToast } = useToast();
+  const { user } = useAuth();
+  const lastNotificationId = useRef("");
+  useEffect(() => {
+    if (!user) return;
+    const notificationsRef = collection(db, 'notifications');
+    const notificationsQuery = query(
+      notificationsRef,
+      where('userId', '==', user.uid),
+      where('read', '==', false)
+    );
+    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+      const sorted = snapshot.docs
+        .map(doc => ({ id: doc.id, ...(doc.data() as any) }))
+        .sort((a, b) => (b.timestamp?.toDate?.()?.getTime?.() || 0)-(a.timestamp?.toDate?.()?.getTime?.() || 0));
+      if (sorted.length) {
+        const notif = sorted[0];
+        if (notif && notif.id !== lastNotificationId.current) {
+          lastNotificationId.current = notif.id;
+          showToast(notif.title || 'New Notification', { body: notif.body || notif.message || '' });
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [user, showToast]);
+  return null;
+}
 
 function AppNavigator() {
   const { user, loading } = useAuth();
@@ -139,9 +171,12 @@ export default function App() {
     <ThemeProvider>
       <LanguageProvider>
         <AuthProvider>
-          <SafeAreaProvider>
-            <AppNavigator />
-          </SafeAreaProvider>
+          <ToastProvider>
+            <NotificationListener />
+            <SafeAreaProvider>
+              <AppNavigator />
+            </SafeAreaProvider>
+          </ToastProvider>
         </AuthProvider>
       </LanguageProvider>
     </ThemeProvider>

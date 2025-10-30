@@ -150,11 +150,6 @@ const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
             </TouchableOpacity>
           )}
         </View>
-
-        {/* Footer Note */}
-        <Text style={styles.footerNote}>
-          A receipt has been sent to your registered email
-        </Text>
       </View>
     </SafeAreaView>
   );

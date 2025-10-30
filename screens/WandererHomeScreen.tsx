@@ -24,6 +24,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { authService } from '../services/authService';
+import { useToast } from '../contexts/ToastContext';
 
 type WandererHomeScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -40,6 +41,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   const { userData } = useAuth();
   const { colors } = useTheme();
   const { t } = useLanguage();
+  const { showToast } = useToast();
 
   const [pickup, setPickup] = useState('');
   const [destination, setDestination] = useState('');
@@ -334,25 +336,6 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
     return () => clearInterval(locationInterval);
   }, [locationPermission]);
 
-  // Listen for unread notifications
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    const notificationsRef = collection(db, 'notifications');
-    const unreadQuery = query(
-      notificationsRef,
-      where('userId', '==', user.uid),
-      where('read', '==', false)
-    );
-
-    const unsubscribe = onSnapshot(unreadQuery, (snapshot) => {
-      setHasUnreadNotifications(!snapshot.empty);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
   // Load recent locations from Firestore
   useEffect(() => {
     const user = auth.currentUser;
@@ -593,7 +576,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
       {/* Map */}
       <MapView
         ref={mapRef}
@@ -953,7 +936,7 @@ const styles = StyleSheet.create({
   },
   locateFab: {
     position: 'absolute',
-    top: 90,
+    top: 120,
     right: 15,
     width: 44,
     height: 44,

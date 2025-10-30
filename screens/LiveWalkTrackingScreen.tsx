@@ -276,6 +276,22 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
     navigation.goBack();
   };
 
+  const recenterToUser = () => {
+    if (!currentLocation || !mapRef.current) {
+      Alert.alert('Location Unavailable', 'Current location is not available yet.');
+      return;
+    }
+    mapRef.current.animateToRegion(
+      {
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      },
+      500
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* Map */}
@@ -292,8 +308,10 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
               longitudeDelta: 0.01,
             }}
             showsUserLocation
-            showsMyLocationButton
+            showsMyLocationButton={false}
             followsUserLocation
+            toolbarEnabled={false}
+            showsCompass={false}
           >
             {/* Current location marker */}
             <Marker
@@ -318,12 +336,21 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
         )}
       </View>
 
+      {/* Locate Me FAB */}
+      <TouchableOpacity
+        style={styles.locateFab}
+        onPress={recenterToUser}
+        activeOpacity={0.8}
+      >
+        <MaterialIcons name="my-location" size={22} color="#000" />
+      </TouchableOpacity>
+
       {/* Header Overlay */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBackPress} style={styles.headerButton}>
           <MaterialIcons name="arrow-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pimple Nilakh</Text>
+        <View style={{flex:1}} />
         <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Notifications')}>
           <MaterialIcons name="notifications" size={28} color="#FFFFFF" />
         </TouchableOpacity>
@@ -336,7 +363,7 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
           <Text style={styles.trackingSubtitle}>
             This is live tracking of your walk.{'\n'}
             You may end the walk once you are{'\n'}
-            done with your daily target :)
+            done with your target :)
           </Text>
         </View>
 
@@ -646,6 +673,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  locateFab: {
+    position: 'absolute',
+    top: 120,
+    right: 15,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });
 

@@ -8,7 +8,8 @@ import {
   updateDoc, 
   deleteDoc,
   orderBy,
-  Timestamp 
+  Timestamp,
+  serverTimestamp 
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
@@ -20,8 +21,11 @@ export interface WalkRequest {
   walkerId: string;
   walkerName: string;
   walkerImage?: string;
+  walkType?: string; // 'route', 'nearby', 'exploringWalk', 'helpingHand', 'suggestiveWalk'
   pickup: string;
   destination: string;
+  meetingPoint?: string;
+  duration?: number;
   scheduledDate: string;
   scheduledTime: string;
   preference: string;
@@ -114,11 +118,21 @@ export class WalkRequestService {
   }
 
   // Accept a walk request
-  static async acceptRequest(requestId: string): Promise<void> {
+  static async acceptRequest(requestId: string, wandererId: string, walkerName: string) {
     try {
       await updateDoc(doc(db, 'walkRequests', requestId), {
         status: 'accepted',
         acceptedAt: Timestamp.now(),
+      });
+      // Add notification for wanderer
+      await addDoc(collection(db, 'notifications'), {
+        userId: wandererId,
+        walkRequestId: requestId,
+        type: 'walk.accepted',
+        title: 'Your Walk Request Was Accepted',
+        body: `Walker ${walkerName} accepted your walk request and will see you soon!`,
+        timestamp: serverTimestamp(),
+        read: false,
       });
       console.log('Walk request accepted:', requestId);
     } catch (error) {

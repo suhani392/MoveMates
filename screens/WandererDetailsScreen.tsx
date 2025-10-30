@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { WalkRequestService } from '../services/walkRequestService';
 
@@ -114,15 +114,22 @@ const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: 
 
     setProcessing(true);
     try {
-      await WalkRequestService.acceptRequest(requestId);
+      const user = auth.currentUser;
+      if (!user) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
+
+      // Get walker name from user data
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const walkerName = userDoc.exists() ? userDoc.data()?.name || 'Walker' : 'Walker';
+
+      await WalkRequestService.acceptRequest(requestId, wanderer.id, walkerName);
       
       // Update walker status to busy
-      const user = auth.currentUser;
-      if (user) {
-        await updateDoc(doc(db, 'users', user.uid), {
-          currentWalkStatus: 'busy',
-        });
-      }
+      await updateDoc(doc(db, 'users', user.uid), {
+        currentWalkStatus: 'busy',
+      });
 
       // Navigate to the acceptance confirmation screen
       navigation.replace('RequestAccepted', {

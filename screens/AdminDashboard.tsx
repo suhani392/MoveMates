@@ -266,7 +266,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>

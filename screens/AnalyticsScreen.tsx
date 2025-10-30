@@ -115,7 +115,7 @@ const AnalyticsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   }, [users]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <MaterialIcons name="arrow-back" size={24} color="#FFFFFF" />

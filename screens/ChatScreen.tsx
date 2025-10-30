@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Keyboard,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -41,6 +42,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const currentUser = auth.currentUser;
   const { userData } = useAuth();
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   // Listen to receiver's online status
   useEffect(() => {
@@ -126,6 +128,17 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     });
   }, [currentUser, userId, isReceiverOnline]);
 
+  useEffect(() => {
+    const onShow = () => setIsKeyboardOpen(true);
+    const onHide = () => setIsKeyboardOpen(false);
+    const showSub = Keyboard.addListener('keyboardDidShow', onShow);
+    const hideSub = Keyboard.addListener('keyboardDidHide', onHide);
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const handleSendMessage = async () => {
     if (!messageText.trim() || !currentUser || sending) return;
 
@@ -186,8 +199,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={16}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -270,7 +283,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         </ScrollView>
 
         {/* Input */}
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { paddingBottom: isKeyboardOpen ? 8 : 56 }]}>
           <TextInput
             style={styles.input}
             placeholder="Type a message..."

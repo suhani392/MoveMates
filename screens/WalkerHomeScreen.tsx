@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Switch, Modal, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Switch, Modal, Image, Alert } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { authService } from '../services/authService';
@@ -7,6 +7,7 @@ import { auth, db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { WalkRequestService, WalkRequest } from '../services/walkRequestService';
+import { useToast } from '../contexts/ToastContext';
 
 type WalkerHomeScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -21,6 +22,7 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const { userData } = useAuth();
+  const { showToast } = useToast();
 
   // Listen for unread notifications
   useEffect(() => {
@@ -96,9 +98,14 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
   };
 
   // Handle accepting a request
-  const handleAcceptRequest = async (requestId: string) => {
+  const handleAcceptRequest = async (requestId: string, wandererId: string, walkerName: string) => {
+    if (!wandererId) {
+      console.error('No wandererId provided to handleAcceptRequest, aborting.');
+      Alert.alert('Error', 'Cannot accept without a valid wanderer ID.');
+      return;
+    }
     try {
-      await WalkRequestService.acceptRequest(requestId);
+      await WalkRequestService.acceptRequest(requestId, wandererId, walkerName);
       // Update walker status to busy
       const user = auth.currentUser;
       if (user) {
@@ -121,7 +128,7 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>
@@ -264,8 +271,29 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
               {/* Wanderer Info */}
               <View style={styles.requestDetails}>
                   <Text style={styles.requestName}>{request.wandererName}</Text>
-                <Text style={styles.requestInfo}>Pickup: {request.pickup}</Text>
-                <Text style={styles.requestInfo}>Destination: {request.destination}</Text>
+                
+                {/* Show different format based on walkType */}
+                {request.walkType === 'route' || !request.walkType ? (
+                  <>
+                    <Text style={styles.requestInfo}>Pickup: {request.pickup}</Text>
+                    <Text style={styles.requestInfo}>Destination: {request.destination}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.requestInfo}>Location: {request.pickup || request.meetingPoint}</Text>
+                    <Text style={styles.requestInfo}>Type: {
+                      request.walkType === 'nearby' ? 'Nearby Walk' :
+                      request.walkType === 'exploringWalk' ? 'Exploring Walk' :
+                      request.walkType === 'helpingHand' ? 'Helping Hand' :
+                      request.walkType === 'suggestiveWalk' ? 'Suggestive Walk' :
+                      request.walkType
+                    }</Text>
+                    {request.duration && (
+                      <Text style={styles.requestInfo}>Duration: {request.duration} min</Text>
+                    )}
+                  </>
+                )}
+                
                   <Text style={styles.requestInfo}>Date: {request.scheduledDate}</Text>
                   <Text style={styles.requestInfo}>Time: {request.scheduledTime}</Text>
                   {request.preference && (
@@ -273,6 +301,9 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
                   )}
                   {request.pricePerHour && (
                     <Text style={styles.requestInfo}>Rate: ₹{request.pricePerHour}/hour</Text>
+                  )}
+                  {request.estimatedDuration && (
+                    <Text style={styles.requestInfo}>Est. Duration: {request.estimatedDuration}</Text>
                   )}
                 </View>
               </View>

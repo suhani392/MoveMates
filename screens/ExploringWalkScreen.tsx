@@ -310,7 +310,7 @@ const ExploringWalkScreen: React.FC<ExploringWalkScreenProps> = ({ navigation })
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
       {/* Map */}
       <MapView
         ref={mapRef}
@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
   },
   locateFab: {
     position: 'absolute',
-    top: 90,
+    top: 120,
     right: 15,
     width: 44,
     height: 44,

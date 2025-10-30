@@ -28,6 +28,8 @@ import {
   PaymentMethod,
 } from '../services/paymentService';
 import { useAuth } from '../contexts/AuthContext';
+import { db } from '../firebaseConfig';
+import { onSnapshot, doc, collection, query, where } from 'firebase/firestore';
 
 type PaymentScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -68,10 +70,43 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   
   // Cash specific
   const [cashConfirmed, setCashConfirmed] = useState(false);
+  const [paymentObserved, setPaymentObserved] = useState(false);
 
   useEffect(() => {
     loadPricingAndCalculate();
   }, [tip]);
+
+  // Listen for payment confirmation by walker (for wanderers)
+  useEffect(() => {
+    if (!isWandererView) return;
+    
+    // Listen to payments collection for this requestId
+    const paymentsRef = collection(db, 'payments');
+    const paymentQuery = query(paymentsRef, where('requestId', '==', requestId));
+    
+    const unsub = onSnapshot(paymentQuery, (snapshot) => {
+      if (snapshot.empty) return;
+      
+      // Get the latest payment record
+      const paymentDoc = snapshot.docs[0];
+      const data = paymentDoc.data();
+      
+      // If walker confirmed payment, redirect wanderer to success
+      if (
+        data.status === 'paid' || 
+        data.upi?.verification === 'walker_confirmed'
+      ) {
+        navigation.replace('PaymentSuccess', {
+          amount: data.totalPayable || data.fare || 0,
+          method: data.method || 'upi',
+          walkerName: data.walkerName || walkerName,
+          isWandererView: true,
+        });
+      }
+    });
+    
+    return () => unsub();
+  }, [isWandererView, requestId, navigation, walkerName]);
 
   const loadPricingAndCalculate = async () => {
     try {
@@ -285,7 +320,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   const durationInMin = fareBreakdown.durationMinutes;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -980,7 +1015,9 @@ const styles = StyleSheet.create({
   methodButton: {
     backgroundColor: '#10B981',
     borderRadius: 16,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    minHeight: 64,
     marginBottom: 15,
     flexDirection: 'row',
     alignItems: 'center',
@@ -992,6 +1029,7 @@ const styles = StyleSheet.create({
   },
   methodButtonCash: {
     backgroundColor: '#F59E0B',
+    minHeight: 64,
   },
   methodButtonText: {
     fontSize: 18,
@@ -999,6 +1037,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginLeft: 15,
     flex: 1,
+    marginTop: -8,
   },
   methodButtonSubtext: {
     fontSize: 12,
@@ -1006,7 +1045,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     position: 'absolute',
     left: 59,
-    bottom: 18,
+    bottom: 20,
   },
   modalOverlay: {
     flex: 1,

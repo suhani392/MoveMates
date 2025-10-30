@@ -16,7 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { authService } from '../services/authService';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 
 type RequestWalkScreenProps = {
@@ -31,6 +31,8 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
   const [menuVisible, setMenuVisible] = useState(false);
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(30))[0];
+  const [caloriesBurnt, setCaloriesBurnt] = useState<number|null>(null);
+  const [loadingCalories, setLoadingCalories] = useState(true);
 
   // Listen for unread notifications
   useEffect(() => {
@@ -66,6 +68,61 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
       }),
     ]).start();
   }, []);
+
+  useEffect(() => {
+    const fetchCalories = async () => {
+      setLoadingCalories(true);
+      try {
+        const user = auth.currentUser;
+        if (!user) {
+          setCaloriesBurnt(0);
+          setLoadingCalories(false);
+          return;
+        }
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        
+        const requestsRef = collection(db, 'walkRequests');
+        // Walker
+        const walkerQuery = query(
+          requestsRef,
+          where('walkerId', '==', user.uid),
+          where('status', '==', 'completed'),
+          orderBy('completedAt','desc')
+        );
+        // Wanderer
+        const wandererQuery = query(
+          requestsRef,
+          where('wandererId', '==', user.uid),
+          where('status', '==', 'completed'),
+          orderBy('completedAt','desc')
+        );
+        const [walkerSnap, wandererSnap] = await Promise.all([
+          getDocs(walkerQuery),
+          getDocs(wandererQuery)
+        ]);
+        let distanceSum = 0;
+        const useIfToday = (doc) => {
+          const data = doc.data();
+          const completedAt = data.completedAt?.toDate?.() || null;
+          if (!completedAt) return false;
+          return completedAt >= today && completedAt < tomorrow;
+        };
+        walkerSnap.forEach(doc => { if (useIfToday(doc)) { distanceSum += doc.data().totalDistance || 0; }});
+        wandererSnap.forEach(doc => { if (useIfToday(doc)) { distanceSum += doc.data().totalDistance || 0; }});
+        const weight = userData?.weight || 60;
+        const calories = Math.round(weight * (distanceSum / 1000) * 0.57);
+        setCaloriesBurnt(calories);
+      } catch (e) {
+        setCaloriesBurnt(0);
+      } finally {
+        setLoadingCalories(false);
+      }
+    };
+    fetchCalories();
+  }, [userData]);
 
   const openDrawer = () => {
     setMenuVisible(true);
@@ -141,14 +198,18 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
     },
   ];
 
+  const handleReloadAnalysis = () => {
+    // TODO: fetch/refresh analysis graph data
+    console.log('Walk analysis (graph) reload triggered');
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
       {/* Header with green color */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>
           <MaterialIcons name="menu" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.appName}>MOVEMATES</Text>
         <TouchableOpacity
           style={styles.headerButton}
           onPress={() => navigation.navigate('Notifications')}
@@ -193,14 +254,18 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
         >
           {/* Calories Burnt Card */}
           <View style={styles.statCard}>
-            <MaterialIcons name="local-fire-department" size={32} color="#000000" />
-            <Text style={styles.statValue}>245</Text>
-            <Text style={styles.statLabel}>Calories Burnt{'\n'}Today</Text>
+            <MaterialIcons name="local-fire-department" size={32} color="#FFFFFF" />
+            {loadingCalories ? (
+              <Text style={styles.statValue}>...</Text>
+            ) : (
+              <Text style={styles.statValue}>{caloriesBurnt}</Text>
+            )}
+            <Text style={styles.statLabel}>{"Calories Burnt\nToday"}</Text>
           </View>
 
           {/* Weekly Target Card */}
           <View style={styles.statCard}>
-            <MaterialIcons name="flag" size={32} color="#000000" />
+            <MaterialIcons name="flag" size={32} color="#FFFFFF" />
             <Text style={styles.statValue}>1500</Text>
             <Text style={styles.statLabel}>Target This{'\n'}Week</Text>
           </View>
@@ -215,7 +280,8 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
             },
           ]}
         >
-          <Text style={styles.sectionTitle}>Choose Walk Type</Text>
+          <Text style={[styles.sectionTitle, {marginTop: 24}]}>Choose walk type</Text>
+          <Text style={{fontSize: 14, color: '#555', marginBottom: 17, marginLeft: 2}}>Choose an option which matches what type of walk would you like to go for today :)</Text>
           
           {walkOptions.map((option, index) => (
             <Animated.View
@@ -240,25 +306,33 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
           ))}
         </Animated.View>
 
-        {/* Wellness Footer Card */}
+        {/* Your Walk Analysis Section */}
         <Animated.View 
           style={[
-            styles.wellnessFooter,
+            styles.walkTypeSection,
             {
               opacity: fadeAnim,
             },
           ]}
         >
-          <View style={styles.wellnessContent}>
-            <View style={styles.wellnessIconContainer}>
-              <MaterialIcons name="favorite" size={40} color="#81C784" />
-            </View>
-            <Text style={styles.wellnessTitle}>Wellness Walks for Mind & Heart</Text>
-            <Text style={styles.wellnessSubtext}>
-              Feeling low or motivated? Join supportive walks with trained companions.
-            </Text>
+          <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 8, marginRight: 12}}>
+            <Text style={styles.sectionTitle}>Your Walk Analysis</Text>
+            <TouchableOpacity
+              style={{padding:8, borderRadius:20, backgroundColor:'#F5F5F5'}} 
+              onPress={handleReloadAnalysis}
+              hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+            >
+              <MaterialIcons name="refresh" size={20} color="#666" />
+            </TouchableOpacity>
+          </View>
+          <View style={{backgroundColor: '#F3F4F6', borderRadius: 14, padding: 18, marginHorizontal: 10, alignItems: 'center', marginBottom: 26, marginTop: 12}}>
+            <Text style={{fontSize: 12, color: '#4B5563', marginBottom: 5}}>(Graph of your walks will appear here)</Text>
+            {/* Insert graph/chart component here in future */}
           </View>
         </Animated.View>
+
+        {/* Wellness Footer Card */}
+        {/* Removed as per edit hint */}
       </ScrollView>
 
       {/* Walker Updates Button - Bottom Right */}
@@ -383,13 +457,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   header: {
-    backgroundColor: '#0A0A0A',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 15,
-    paddingBottom: 15,
+    paddingBottom: 10,
   },
   headerButton: {
     width: 45,
@@ -411,7 +485,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#FFD700',
+    backgroundColor: '#3B82F6',
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
@@ -423,17 +497,17 @@ const styles = StyleSheet.create({
   },
   greetingSection: {
     paddingHorizontal: 25,
-    paddingTop: 30,
+    paddingTop: 16, // was 30
     paddingBottom: 15,
   },
   greetingText: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
     color: '#000000',
     marginBottom: 8,
   },
   dateTimeText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '400',
     color: '#666666',
   },
@@ -445,7 +519,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: 'rgba(184, 235, 255, 0.7)',
+    backgroundColor: '#6C63FF',
     borderRadius: 16,
     padding: 20,
     alignItems: 'center',
@@ -458,14 +532,14 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#000000',
+    color: '#FFFFFF', // white
     marginTop: 10,
     marginBottom: 5,
   },
   statLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#000000',
+    color: '#FFFFFF', // white
     textAlign: 'center',
     lineHeight: 18,
   },
@@ -474,10 +548,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 22,
+    fontSize: 20, // was 22
     fontWeight: '700',
     color: '#333',
-    marginBottom: 20,
+    marginBottom: 8,
   },
   walkCard: {
     flexDirection: 'row',
