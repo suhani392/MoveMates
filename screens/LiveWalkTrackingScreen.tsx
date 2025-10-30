@@ -16,7 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 type LiveWalkTrackingScreenProps = {
@@ -66,12 +66,13 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
           const distance = data.totalDistance || 0;
           const duration = data.totalDuration || 0;
           const walkerRate = 100; // TODO: Get from walker profile
+          const walkerId = data.walkerId || '';
           
           navigation.replace('Payment', {
             requestId,
             distance,
             duration,
-            walkerRate,
+            walkerId,
             walkerName: wandererName,
             isWandererView: true,
           });
@@ -242,12 +243,18 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
                 totalDuration: durationInMinutes,
               });
 
+              // Get walkRequest data to extract walkerId
+              const walkRef = doc(db, 'walkRequests', requestId);
+              const walkSnap = await getDoc(walkRef);
+              const walkData = walkSnap.data();
+              const walkerId = walkData?.walkerId || '';
+
               // Navigate to Payment screen with walk data
               navigation.replace('Payment', {
                 requestId,
                 distance: totalDistance,
                 duration: durationInMinutes,
-                walkerRate: 100, // TODO: Get from walker profile
+                walkerId,
                 walkerName: wandererName,
                 isWandererView: false,
               });

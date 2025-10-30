@@ -48,11 +48,14 @@ import TermsConditionsScreen from '../screens/TermsConditionsScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import AuditLogsScreen from '../screens/AuditLogsScreen';
+import AdminPaymentsScreen from '../screens/AdminPaymentsScreen';
+import PaymentSuccessScreen from '../screens/PaymentSuccessScreen';
 import LocationSearchScreen from '../screens/LocationSearchScreen';
 import LiveWalkTrackingScreen from '../screens/LiveWalkTrackingScreen';
 import SOSScreen from '../screens/SOSScreen';
 import FamilyDashboardScreen from '../screens/FamilyDashboardScreen';
 import PaymentScreen from '../screens/PaymentScreen';
+import PaymentHelpScreen from '../screens/PaymentHelpScreen';
 
 const Stack = createStackNavigator();
 
@@ -174,11 +177,14 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} />
       <Stack.Screen name="AuditLogs" component={AuditLogsScreen} />
+      <Stack.Screen name="AdminPayments" component={AdminPaymentsScreen} />
+      <Stack.Screen name="PaymentSuccess" component={PaymentSuccessScreen} />
       <Stack.Screen name="LocationSearch" component={LocationSearchScreen} />
       <Stack.Screen name="LiveWalkTracking" component={LiveWalkTrackingScreen} />
       <Stack.Screen name="SOS" component={SOSScreen} />
       <Stack.Screen name="FamilyDashboard" component={FamilyDashboardScreen} />
       <Stack.Screen name="Payment" component={PaymentScreen} />
+      <Stack.Screen name="PaymentHelp" component={PaymentHelpScreen} />
     </Stack.Navigator>
   );
 };

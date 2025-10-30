@@ -683,6 +683,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
+                navigation.navigate('AdminPayments');
+              }}
+            >
+              <Text style={styles.drawerText}>Payments</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
                 navigation.navigate('ContactUs');
               }}
             >
