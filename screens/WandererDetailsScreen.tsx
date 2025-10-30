@@ -9,9 +9,10 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, getDoc, getDocs } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { WalkRequestService } from '../services/walkRequestService';
 
@@ -27,9 +28,60 @@ interface Review {
 const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: any }) => {
   const wanderer = route.params?.wanderer;
   const requestId = route.params?.requestId;
+  
+  console.log('=== WandererDetailsScreen Loaded ===');
+  console.log('Wanderer object:', wanderer);
+  console.log('Wanderer ID:', wanderer?.id);
+  console.log('Request ID:', requestId);
+  
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [wandererDetails, setWandererDetails] = useState<any>(null);
+  const [walkRequest, setWalkRequest] = useState<any>(null);
+  const [actualRating, setActualRating] = useState<number>(0);
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
+
+  // Calculate actual rating from reviews
+  useEffect(() => {
+    console.log('Calculating rating from reviews:', reviews.length);
+    if (reviews.length > 0) {
+      const totalRating = reviews.reduce((sum, review) => sum + (review.rating || 0), 0);
+      const avgRating = totalRating / reviews.length;
+      const calculatedRating = Math.round(avgRating * 10) / 10;
+      console.log('Total rating:', totalRating, 'Average:', avgRating, 'Calculated:', calculatedRating);
+      setActualRating(calculatedRating);
+    } else {
+      console.log('No reviews, setting rating to 0');
+      setActualRating(0);
+    }
+  }, [reviews]);
+
+  // Fetch wanderer details and walk request
+  useEffect(() => {
+    const fetchDetails = async () => {
+      if (!wanderer?.id || !requestId) return;
+
+      try {
+        // Fetch wanderer's full profile
+        const wandererDoc = await getDoc(doc(db, 'users', wanderer.id));
+        if (wandererDoc.exists()) {
+          setWandererDetails(wandererDoc.data());
+        }
+
+        // Fetch walk request details
+        const requestDoc = await getDoc(doc(db, 'walkRequests', requestId));
+        if (requestDoc.exists()) {
+          setWalkRequest(requestDoc.data());
+        }
+      } catch (error) {
+        console.error('Error fetching details:', error);
+      }
+    };
+
+    fetchDetails();
+  }, [wanderer?.id, requestId]);
 
   // Fetch reviews for this wanderer
   useEffect(() => {
@@ -38,19 +90,34 @@ const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: 
       return;
     }
 
+    console.log('Fetching reviews for wanderer ID:', wanderer.id);
+    setDebugInfo(`Querying wandererId: ${wanderer.id}`);
+    
     const reviewsRef = collection(db, 'reviews');
     const reviewsQuery = query(reviewsRef, where('wandererId', '==', wanderer.id));
 
     const unsubscribe = onSnapshot(
       reviewsQuery,
       (snapshot) => {
+        console.log('Reviews snapshot size:', snapshot.size);
+        console.log('All docs in snapshot:', snapshot.docs.map(d => ({ id: d.id, data: d.data() })));
+        
+        setDebugInfo(`Found ${snapshot.size} reviews for ${wanderer.id}`);
+        
         if (!snapshot.empty) {
-          const reviewsList: Review[] = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          } as Review));
+          const reviewsList: Review[] = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            console.log('Review doc:', doc.id, 'wandererId:', data.wandererId, 'rating:', data.rating);
+            return {
+              id: doc.id,
+              ...data,
+            } as Review;
+          });
+          console.log('Reviews found:', reviewsList.length, reviewsList);
           setReviews(reviewsList);
         } else {
+          console.log('No reviews found for wanderer:', wanderer.id);
+          console.log('Query was: wandererId ==', wanderer.id);
           setReviews([]);
         }
         setLoading(false);
@@ -147,39 +214,27 @@ const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: 
     }
   };
 
-  const handleDeclineRequest = async () => {
+  const handleDeclineRequest = () => {
     if (!requestId) {
       Alert.alert('Error', 'Request ID not found');
       return;
     }
+    setShowDeclineModal(true);
+  };
 
-    Alert.alert(
-      'Decline Request',
-      `Are you sure you want to decline the walk request from ${wanderer.name}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Decline',
-          style: 'destructive',
-          onPress: async () => {
-            setProcessing(true);
-            try {
-              await WalkRequestService.declineRequest(requestId);
-              Alert.alert(
-                'Request Declined',
-                'The walk request has been declined.',
-                [{ text: 'OK', onPress: () => navigation.goBack() }]
-              );
-            } catch (error) {
-              console.error('Error declining request:', error);
-              Alert.alert('Error', 'Failed to decline the request. Please try again.');
-            } finally {
-              setProcessing(false);
-            }
-          },
-        },
-      ]
-    );
+  const confirmDeclineRequest = async () => {
+    setShowDeclineModal(false);
+    setProcessing(true);
+    try {
+      await WalkRequestService.declineRequest(requestId);
+      // Navigate back without showing success alert
+      navigation.goBack();
+    } catch (error) {
+      console.error('Error declining request:', error);
+      Alert.alert('Error', 'Failed to decline the request. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   if (!wanderer) {
@@ -229,32 +284,116 @@ const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: 
           </View>
 
           {/* About Section */}
-          {wanderer.about && (
-            <Text style={styles.aboutText}>{wanderer.about}</Text>
+          {(wandererDetails?.about || wanderer.about) && (
+            <View style={styles.aboutSection}>
+              <Text style={styles.detailValue}>{wandererDetails?.about || wanderer.about}</Text>
+            </View>
           )}
 
-          {/* Details Section */}
+          {/* Personal Details */}
           <View style={styles.detailsSection}>
-            <Text style={styles.sectionTitle}>Details</Text>
-            <Text style={styles.detailText}>Pace : {wanderer.pace || 'Moderate'}</Text>
-            <Text style={styles.detailText}>Pickup : {wanderer.pickup || '---'}</Text>
-            <Text style={styles.detailText}>Destination : {wanderer.destination || '---'}</Text>
-            {wanderer.languages && (
-              <Text style={styles.detailText}>Languages : {wanderer.languages}</Text>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Pace</Text>
+              <Text style={styles.detailValue}>{wandererDetails?.walkingPace || wanderer.pace || 'Moderate'}</Text>
+            </View>
+            {(wandererDetails?.languages || wanderer.languages) && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Languages</Text>
+                <Text style={styles.detailValue}>{wandererDetails?.languages || wanderer.languages}</Text>
+              </View>
             )}
-            <Text style={styles.detailText}>Preference : {wanderer.preference || 'Solo'}</Text>
+            {(wandererDetails?.age || wanderer.age) && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Age</Text>
+                <Text style={styles.detailValue}>{wandererDetails?.age || wanderer.age}</Text>
+              </View>
+            )}
+            {(wandererDetails?.hobbies || wanderer.hobbies) && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Hobbies</Text>
+                <Text style={styles.detailValue}>{wandererDetails?.hobbies || wanderer.hobbies}</Text>
+              </View>
+            )}
           </View>
+
+          {/* Walk Details Section */}
+          {walkRequest && (
+            <View style={styles.walkDetailsSection}>
+              <Text style={styles.sectionTitle}>Walk Details</Text>
+              
+              {/* Show different format based on walkType */}
+              {walkRequest.walkType === 'route' || !walkRequest.walkType ? (
+                <>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Pickup</Text>
+                    <Text style={styles.detailValue}>{walkRequest.pickup || wanderer.pickup || '---'}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Destination</Text>
+                    <Text style={styles.detailValue}>{walkRequest.destination || wanderer.destination || '---'}</Text>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Location</Text>
+                    <Text style={styles.detailValue}>{walkRequest.pickup || walkRequest.meetingPoint || '---'}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Type</Text>
+                    <Text style={styles.detailValue}>{
+                      walkRequest.walkType === 'nearby' ? 'Nearby Walk' :
+                      walkRequest.walkType === 'exploringWalk' ? 'Exploring Walk' :
+                      walkRequest.walkType === 'helpingHand' ? 'Helping Hand' :
+                      walkRequest.walkType === 'suggestiveWalk' ? 'Suggestive Walk' :
+                      walkRequest.walkType
+                    }</Text>
+                  </View>
+                  {walkRequest.duration && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Duration</Text>
+                      <Text style={styles.detailValue}>{walkRequest.duration} minutes</Text>
+                    </View>
+                  )}
+                </>
+              )}
+              
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Date</Text>
+                <Text style={styles.detailValue}>{walkRequest.scheduledDate}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Time</Text>
+                <Text style={styles.detailValue}>{walkRequest.scheduledTime}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Preference</Text>
+                <Text style={styles.detailValue}>{walkRequest.preference || wanderer.preference || 'Solo'}</Text>
+              </View>
+              {walkRequest.estimatedDuration && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Est. Duration</Text>
+                  <Text style={styles.detailValue}>{walkRequest.estimatedDuration}</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Ratings Section */}
           <View style={styles.ratingsSection}>
             <Text style={styles.sectionTitle}>Ratings</Text>
+            {debugInfo && (
+              <Text style={{ fontSize: 12, color: 'red', marginBottom: 10, textAlign: 'center' }}>
+                DEBUG: {debugInfo} | Reviews: {reviews.length}
+              </Text>
+            )}
             <View style={styles.ratingsContent}>
               {/* Average Rating */}
               <View style={styles.averageRatingContainer}>
                 <Text style={styles.averageRatingNumber}>
-                  {wanderer.rating ? wanderer.rating.toFixed(1) : '4.9'}
+                  {actualRating > 0 ? actualRating.toFixed(1) : '0.0'}
                 </Text>
-                {renderStars(Math.round(wanderer.rating || 5))}
+                {renderStars(Math.round(actualRating))}
               </View>
 
               {/* Rating Distribution */}
@@ -295,6 +434,44 @@ const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: 
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Decline Request Confirmation Modal */}
+      <Modal
+        visible={showDeclineModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeclineModal(false)}
+      >
+        <View style={styles.declineModalOverlay}>
+          <View style={styles.declineModalContent}>
+            <View style={styles.declineIconContainer}>
+              <MaterialIcons name="cancel" size={64} color="#EF4444" />
+            </View>
+            
+            <Text style={styles.declineModalTitle}>Decline Request?</Text>
+            <Text style={styles.declineModalMessage}>
+              Are you sure you want to decline the walk request from {wanderer.name}?
+            </Text>
+
+            <View style={styles.declineModalButtons}>
+              <TouchableOpacity
+                style={styles.declineCancelButton}
+                onPress={() => setShowDeclineModal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.declineCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.declineConfirmButton}
+                onPress={confirmDeclineRequest}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.declineConfirmButtonText}>Decline</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -322,12 +499,12 @@ const styles = StyleSheet.create({
     marginRight: 15,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
     color: '#000000',
   },
   wandererCard: {
-    backgroundColor: '#D9DFF7',
+    backgroundColor: '#E8F0FD',
     borderRadius: 25,
     padding: 20,
     marginBottom: 20,
@@ -375,14 +552,28 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontWeight: '600',
   },
-  aboutText: {
-    fontSize: 14,
-    color: '#333333',
-    lineHeight: 22,
+  aboutSection: {
     marginBottom: 20,
   },
   detailsSection: {
     marginBottom: 20,
+  },
+  walkDetailsSection: {
+    marginBottom: 20,
+  },
+  detailRow: {
+    marginBottom: 12,
+  },
+  detailLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 4,
+  },
+  detailValue: {
+    fontSize: 14,
+    color: '#333333',
+    lineHeight: 22,
   },
   sectionTitle: {
     fontSize: 18,
@@ -504,6 +695,80 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.5,
+  },
+  declineModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  declineModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 30,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  declineIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  declineModalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  declineModalMessage: {
+    fontSize: 16,
+    color: '#666666',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 30,
+  },
+  declineModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  declineCancelButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  declineCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  declineConfirmButton: {
+    flex: 1,
+    backgroundColor: '#EF4444',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  declineConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 

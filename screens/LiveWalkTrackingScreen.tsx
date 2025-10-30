@@ -38,6 +38,8 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
   const [shareLink, setShareLink] = useState('');
   const [totalDistance, setTotalDistance] = useState(0); // in meters
   const [startTime] = useState(Date.now());
+  const [liveDistance, setLiveDistance] = useState(0); // Distance synced from Firestore
+  const [showEndWalkModal, setShowEndWalkModal] = useState(false);
   const mapRef = useRef<MapView>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
 
@@ -52,17 +54,20 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
     };
   }, []);
 
-  // Listen for walk completion (for wanderers)
+  // Listen for walk updates (distance and completion)
   useEffect(() => {
-    if (!isWandererView) return; // Only for wanderers
-
     const walkRef = doc(db, 'walkRequests', requestId);
     const unsubscribe = onSnapshot(walkRef, (docSnapshot) => {
       if (docSnapshot.exists()) {
         const data = docSnapshot.data();
         
-        // When walk is completed, navigate to payment screen
-        if (data.status === 'completed') {
+        // Update live distance for both users
+        if (data.liveDistance !== undefined) {
+          setLiveDistance(data.liveDistance);
+        }
+        
+        // When walk is completed, navigate to payment screen (for wanderers)
+        if (isWandererView && data.status === 'completed') {
           const distance = data.totalDistance || 0;
           const duration = data.totalDuration || 0;
           const walkerRate = 100; // TODO: Get from walker profile
@@ -119,6 +124,7 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
           };
 
           // Calculate distance from previous location
+          let newDistance = 0;
           if (currentLocation) {
             const distance = calculateDistance(
               currentLocation.latitude,
@@ -126,19 +132,21 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
               newCoords.latitude,
               newCoords.longitude
             );
-            setTotalDistance((prev) => prev + distance);
+            newDistance = totalDistance + distance;
+            setTotalDistance(newDistance);
           }
 
           setCurrentLocation(newCoords);
           setRoutePath((prevPath) => [...prevPath, newCoords]);
 
-          // Update Firestore with current location for real-time tracking
+          // Update Firestore with current location and distance for real-time tracking
           const requestRef = doc(db, 'walkRequests', requestId);
           updateDoc(requestRef, {
             currentLocation: {
               latitude: newCoords.latitude,
               longitude: newCoords.longitude,
             },
+            liveDistance: newDistance,
             lastUpdated: new Date(),
           }).catch(err => console.error('Error updating location:', err));
 
@@ -213,59 +221,48 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
   };
 
   const handleEndWalk = () => {
-    Alert.alert(
-      'End Walk',
-      'Are you sure you want to end this walk?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'End Walk',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Stop location tracking
-              if (locationSubscription.current) {
-                locationSubscription.current.remove();
-              }
+    setShowEndWalkModal(true);
+  };
 
-              // Calculate duration in minutes
-              const durationInMinutes = Math.round((Date.now() - startTime) / 60000);
+  const confirmEndWalk = async () => {
+    setShowEndWalkModal(false);
+    try {
+      // Stop location tracking
+      if (locationSubscription.current) {
+        locationSubscription.current.remove();
+      }
 
-              // Update walk status in Firestore
-              const requestRef = doc(db, 'walkRequests', requestId);
-              await updateDoc(requestRef, {
-                status: 'completed',
-                completedAt: new Date(),
-                totalDistance: totalDistance,
-                totalDuration: durationInMinutes,
-              });
+      // Calculate duration in minutes
+      const durationInMinutes = Math.round((Date.now() - startTime) / 60000);
 
-              // Get walkRequest data to extract walkerId
-              const walkRef = doc(db, 'walkRequests', requestId);
-              const walkSnap = await getDoc(walkRef);
-              const walkData = walkSnap.data();
-              const walkerId = walkData?.walkerId || '';
+      // Update walk status in Firestore
+      const requestRef = doc(db, 'walkRequests', requestId);
+      await updateDoc(requestRef, {
+        status: 'completed',
+        completedAt: new Date(),
+        totalDistance: totalDistance,
+        totalDuration: durationInMinutes,
+      });
 
-              // Navigate to Payment screen with walk data
-              navigation.replace('Payment', {
-                requestId,
-                distance: totalDistance,
-                duration: durationInMinutes,
-                walkerId,
-                walkerName: wandererName,
-                isWandererView: false,
-              });
-            } catch (error) {
-              console.error('Error ending walk:', error);
-              Alert.alert('Error', 'Failed to end the walk. Please try again.');
-            }
-          },
-        },
-      ]
-    );
+      // Get walkRequest data to extract walkerId
+      const walkRef = doc(db, 'walkRequests', requestId);
+      const walkSnap = await getDoc(walkRef);
+      const walkData = walkSnap.data();
+      const walkerId = walkData?.walkerId || '';
+
+      // Navigate to Payment screen with walk data
+      navigation.replace('Payment', {
+        requestId,
+        distance: totalDistance,
+        duration: durationInMinutes,
+        walkerId,
+        walkerName: wandererName,
+        isWandererView: false,
+      });
+    } catch (error) {
+      console.error('Error ending walk:', error);
+      Alert.alert('Error', 'Failed to end the walk. Please try again.');
+    }
   };
 
   const handleEmergencySOS = () => {
@@ -354,6 +351,23 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
         <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Notifications')}>
           <MaterialIcons name="notifications" size={28} color="#FFFFFF" />
         </TouchableOpacity>
+      </View>
+
+      {/* Distance Display - Top */}
+      <View style={styles.distanceCardTop}>
+        <MaterialIcons name="directions-walk" size={24} color="#5B21B6" />
+        <View style={styles.distanceInfoTop}>
+          <Text style={styles.distanceLabelTop}>Distance Walked</Text>
+          <Text style={styles.distanceValueTop}>
+            {(liveDistance / 1000).toFixed(2)} km
+          </Text>
+        </View>
+        <View style={styles.distanceInfoTop}>
+          <Text style={styles.distanceLabelTop}>Meters</Text>
+          <Text style={styles.distanceValueSmallTop}>
+            {Math.round(liveDistance)} m
+          </Text>
+        </View>
       </View>
 
       {/* Bottom Info Card */}
@@ -453,6 +467,44 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
           </View>
         </View>
       </Modal>
+
+      {/* End Walk Confirmation Modal */}
+      <Modal
+        visible={showEndWalkModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEndWalkModal(false)}
+      >
+        <View style={styles.endWalkModalOverlay}>
+          <View style={styles.endWalkModalContent}>
+            <View style={styles.endWalkIconContainer}>
+              <MaterialIcons name="flag" size={48} color="#EF4444" />
+            </View>
+            
+            <Text style={styles.endWalkModalTitle}>End Walk?</Text>
+            <Text style={styles.endWalkModalMessage}>
+              Are you sure you want to end this walk? This will complete the walk and proceed to payment.
+            </Text>
+
+            <View style={styles.endWalkModalButtons}>
+              <TouchableOpacity
+                style={styles.endWalkCancelButton}
+                onPress={() => setShowEndWalkModal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.endWalkCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.endWalkConfirmButton}
+                onPress={confirmEndWalk}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.endWalkConfirmButtonText}>End Walk</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -471,8 +523,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingTop: 45,
     paddingBottom: 10,
     zIndex: 10,
   },
@@ -488,6 +540,43 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     flex: 1,
     textAlign: 'center',
+  },
+  distanceCardTop: {
+    position: 'absolute',
+    top: 105,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderRadius: 20,
+    padding: 16,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 10,
+  },
+  distanceInfoTop: {
+    flex: 1,
+  },
+  distanceLabelTop: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#666666',
+    marginBottom: 4,
+  },
+  distanceValueTop: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#5B21B6',
+  },
+  distanceValueSmallTop: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#5B21B6',
   },
   mapContainer: {
     ...StyleSheet.absoluteFillObject,
@@ -519,6 +608,39 @@ const styles = StyleSheet.create({
     paddingTop: 25,
     paddingBottom: 30,
     zIndex: 10,
+  },
+  distanceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 20,
+    gap: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  distanceInfo: {
+    flex: 1,
+  },
+  distanceLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666666',
+    marginBottom: 4,
+  },
+  distanceValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#5B21B6',
+  },
+  distanceValueSmall: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#5B21B6',
   },
   trackingInfo: {
     marginBottom: 20,
@@ -676,7 +798,7 @@ const styles = StyleSheet.create({
   },
   locateFab: {
     position: 'absolute',
-    top: 120,
+    top: 190,
     right: 15,
     width: 44,
     height: 44,
@@ -690,6 +812,80 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 4,
+  },
+  endWalkModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  endWalkModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 30,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  endWalkIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  endWalkModalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  endWalkModalMessage: {
+    fontSize: 16,
+    color: '#666666',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 30,
+  },
+  endWalkModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  endWalkCancelButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  endWalkCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  endWalkConfirmButton: {
+    flex: 1,
+    backgroundColor: '#EF4444',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  endWalkConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 

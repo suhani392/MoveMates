@@ -57,6 +57,8 @@ import FamilyDashboardScreen from '../screens/FamilyDashboardScreen';
 import PaymentScreen from '../screens/PaymentScreen';
 import PaymentHelpScreen from '../screens/PaymentHelpScreen';
 import WalkerTestScreen from '../screens/WalkerTestScreen';
+import WalkersListScreen from '../screens/WalkersListScreen';
+import WalkerProfileScreen from '../screens/WalkerProfileScreen';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { db } from '../firebaseConfig';
@@ -211,6 +213,8 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="Payment" component={PaymentScreen} />
       <Stack.Screen name="PaymentHelp" component={PaymentHelpScreen} />
       <Stack.Screen name="WalkerTest" component={WalkerTestScreen} />
+      <Stack.Screen name="WalkersList" component={WalkersListScreen} />
+      <Stack.Screen name="WalkerProfile" component={WalkerProfileScreen} />
     </Stack.Navigator>
   );
 };

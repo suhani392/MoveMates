@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 
 type DataUsageScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -19,9 +21,76 @@ type DataUsageScreenProps = {
 const DataUsageScreen: React.FC<DataUsageScreenProps> = ({ navigation }) => {
   const [autoDownload, setAutoDownload] = useState(false);
   const [highQualityImages, setHighQualityImages] = useState(true);
-  const [videoAutoplay, setVideoAutoplay] = useState(false);
   const [backgroundSync, setBackgroundSync] = useState(true);
-  const [wifiOnly, setWifiOnly] = useState(false);
+  const [cacheSize, setCacheSize] = useState('0 MB');
+  const [appDataSize, setAppDataSize] = useState('0 MB');
+  const [totalSize, setTotalSize] = useState('0 MB');
+
+  useEffect(() => {
+    calculateStorageUsage();
+  }, []);
+
+  const getDirectorySize = async (dirPath: string): Promise<number> => {
+    try {
+      const files = await FileSystem.readDirectoryAsync(dirPath);
+      let totalSize = 0;
+
+      for (const file of files) {
+        const filePath = `${dirPath}${file}`;
+        const fileInfo = await FileSystem.getInfoAsync(filePath);
+        
+        if (fileInfo.exists) {
+          if (fileInfo.isDirectory) {
+            // Recursively get subdirectory size
+            totalSize += await getDirectorySize(`${filePath}/`);
+          } else {
+            totalSize += fileInfo.size || 0;
+          }
+        }
+      }
+
+      return totalSize;
+    } catch (error) {
+      console.error('Error calculating directory size:', error);
+      return 0;
+    }
+  };
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 MB';
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(1)} MB`;
+  };
+
+  const calculateStorageUsage = async () => {
+    try {
+      let cacheSizeBytes = 0;
+      let appDataSizeBytes = 0;
+
+      // Get cache directory size
+      const cacheDir = FileSystem.cacheDirectory;
+      if (cacheDir) {
+        cacheSizeBytes = await getDirectorySize(cacheDir);
+        setCacheSize(formatBytes(cacheSizeBytes));
+      }
+
+      // Get document directory size (app data)
+      const docDir = FileSystem.documentDirectory;
+      if (docDir) {
+        appDataSizeBytes = await getDirectorySize(docDir);
+        setAppDataSize(formatBytes(appDataSizeBytes));
+      }
+
+      // Calculate total
+      const total = cacheSizeBytes + appDataSizeBytes;
+      setTotalSize(formatBytes(total));
+    } catch (error) {
+      console.error('Error calculating storage:', error);
+      setCacheSize('0 MB');
+      setAppDataSize('0 MB');
+      setTotalSize('0 MB');
+    }
+  };
 
   const handleClearCache = () => {
     Alert.alert(
@@ -32,9 +101,40 @@ const DataUsageScreen: React.FC<DataUsageScreenProps> = ({ navigation }) => {
         {
           text: 'Clear',
           style: 'destructive',
-          onPress: () => {
-            // Implement cache clearing logic
-            Alert.alert('Success', 'Cache cleared successfully!');
+          onPress: async () => {
+            try {
+              // Clear image cache and temporary files
+              const cacheDir = FileSystem.cacheDirectory;
+              if (cacheDir) {
+                const files = await FileSystem.readDirectoryAsync(cacheDir);
+                
+                // Delete all cache files
+                for (const file of files) {
+                  try {
+                    await FileSystem.deleteAsync(`${cacheDir}${file}`, { idempotent: true });
+                  } catch (err) {
+                    console.log('Error deleting file:', file);
+                  }
+                }
+              }
+
+              // Clear any cached data from AsyncStorage (keep user preferences)
+              const keys = await AsyncStorage.getAllKeys();
+              const cacheKeys = keys.filter(key => 
+                key.includes('cache') || 
+                key.includes('temp') || 
+                key.includes('image')
+              );
+              if (cacheKeys.length > 0) {
+                await AsyncStorage.multiRemove(cacheKeys);
+              }
+
+              await calculateStorageUsage();
+              Alert.alert('Success', 'Cache cleared successfully! The app may load content fresh on next use.');
+            } catch (error) {
+              console.error('Error clearing cache:', error);
+              Alert.alert('Error', 'Failed to clear cache. Please try again.');
+            }
           },
         },
       ]
@@ -50,9 +150,59 @@ const DataUsageScreen: React.FC<DataUsageScreenProps> = ({ navigation }) => {
         {
           text: 'Clear All',
           style: 'destructive',
-          onPress: () => {
-            // Implement data clearing logic
-            Alert.alert('Success', 'All local data cleared!');
+          onPress: async () => {
+            try {
+              // Clear all AsyncStorage except authentication tokens
+              const keys = await AsyncStorage.getAllKeys();
+              const keysToRemove = keys.filter(key => 
+                !key.includes('auth') && 
+                !key.includes('token') &&
+                !key.includes('user')
+              );
+              
+              if (keysToRemove.length > 0) {
+                await AsyncStorage.multiRemove(keysToRemove);
+              }
+
+              // Clear cache directory
+              const cacheDir = FileSystem.cacheDirectory;
+              if (cacheDir) {
+                const files = await FileSystem.readDirectoryAsync(cacheDir);
+                for (const file of files) {
+                  try {
+                    await FileSystem.deleteAsync(`${cacheDir}${file}`, { idempotent: true });
+                  } catch (err) {
+                    console.log('Error deleting file:', file);
+                  }
+                }
+              }
+
+              // Clear document directory (offline content)
+              const docDir = FileSystem.documentDirectory;
+              if (docDir) {
+                const files = await FileSystem.readDirectoryAsync(docDir);
+                for (const file of files) {
+                  try {
+                    // Don't delete SQLite databases or critical files
+                    if (!file.includes('.db') && !file.includes('RCTAsyncLocalStorage')) {
+                      await FileSystem.deleteAsync(`${docDir}${file}`, { idempotent: true });
+                    }
+                  } catch (err) {
+                    console.log('Error deleting file:', file);
+                  }
+                }
+              }
+
+              await calculateStorageUsage();
+              Alert.alert(
+                'Success', 
+                'All local data cleared! Your account is safe and you remain logged in.',
+                [{ text: 'OK', onPress: () => navigation.goBack() }]
+              );
+            } catch (error) {
+              console.error('Error clearing data:', error);
+              Alert.alert('Error', 'Failed to clear all data. Please try again.');
+            }
           },
         },
       ]
@@ -83,17 +233,17 @@ const DataUsageScreen: React.FC<DataUsageScreenProps> = ({ navigation }) => {
           </View>
           <View style={styles.storageStats}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>24.5 MB</Text>
+              <Text style={styles.statValue}>{appDataSize}</Text>
               <Text style={styles.statLabel}>App Data</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>12.8 MB</Text>
+              <Text style={styles.statValue}>{cacheSize}</Text>
               <Text style={styles.statLabel}>Cache</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>37.3 MB</Text>
+              <Text style={styles.statValue}>{totalSize}</Text>
               <Text style={styles.statLabel}>Total</Text>
             </View>
           </View>
@@ -103,24 +253,6 @@ const DataUsageScreen: React.FC<DataUsageScreenProps> = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Data Settings</Text>
           
-          <View style={styles.settingCard}>
-            <View style={styles.settingInfo}>
-              <MaterialIcons name="wifi" size={24} color="#3B82F6" />
-              <View style={styles.settingText}>
-                <Text style={styles.settingName}>WiFi Only Mode</Text>
-                <Text style={styles.settingDescription}>
-                  Use data only when connected to WiFi
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={wifiOnly}
-              onValueChange={setWifiOnly}
-              trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-              thumbColor={wifiOnly ? '#22C55E' : '#F3F4F6'}
-            />
-          </View>
-
           <View style={styles.settingCard}>
             <View style={styles.settingInfo}>
               <MaterialIcons name="cloud-sync" size={24} color="#059669" />
@@ -177,24 +309,6 @@ const DataUsageScreen: React.FC<DataUsageScreenProps> = ({ navigation }) => {
               onValueChange={setHighQualityImages}
               trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
               thumbColor={highQualityImages ? '#22C55E' : '#F3F4F6'}
-            />
-          </View>
-
-          <View style={styles.settingCard}>
-            <View style={styles.settingInfo}>
-              <MaterialIcons name="play-circle" size={24} color="#F59E0B" />
-              <View style={styles.settingText}>
-                <Text style={styles.settingName}>Video Autoplay</Text>
-                <Text style={styles.settingDescription}>
-                  Automatically play videos
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={videoAutoplay}
-              onValueChange={setVideoAutoplay}
-              trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-              thumbColor={videoAutoplay ? '#22C55E' : '#F3F4F6'}
             />
           </View>
         </View>

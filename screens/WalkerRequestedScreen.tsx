@@ -62,12 +62,13 @@ const WalkerRequestedScreen: React.FC<WalkerRequestedScreenProps> = ({ navigatio
         pickup: scheduleData.pickup || scheduleData.meetingPoint || '',
         destination: scheduleData.destination || '',
         meetingPoint: scheduleData.meetingPoint,
-        duration: scheduleData.duration,
         scheduledDate: scheduleData.scheduledDate,
         scheduledTime: scheduleData.scheduledTime,
         preference: scheduleData.preference || 'Solo',
         pricePerHour: walker.pricePerHour,
         estimatedDuration: scheduleData.estimatedDuration,
+        // Only include duration if it exists and is not undefined
+        ...(scheduleData.duration && { duration: scheduleData.duration }),
         // Only include notes if it exists and is not undefined
         ...(scheduleData.notes && { notes: scheduleData.notes }),
       };
@@ -122,7 +123,7 @@ const WalkerRequestedScreen: React.FC<WalkerRequestedScreenProps> = ({ navigatio
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { paddingTop: 32 }]}>
       {/* Header with Back Button */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>

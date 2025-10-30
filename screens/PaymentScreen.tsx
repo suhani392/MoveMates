@@ -29,7 +29,7 @@ import {
 } from '../services/paymentService';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebaseConfig';
-import { onSnapshot, doc, collection, query, where } from 'firebase/firestore';
+import { onSnapshot, doc, collection, query, where, updateDoc } from 'firebase/firestore';
 
 type PaymentScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -71,42 +71,53 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   // Cash specific
   const [cashConfirmed, setCashConfirmed] = useState(false);
   const [paymentObserved, setPaymentObserved] = useState(false);
+  
+  // Payment received confirmation modal
+  const [showPaymentReceivedModal, setShowPaymentReceivedModal] = useState(false);
 
   useEffect(() => {
     loadPricingAndCalculate();
   }, [tip]);
 
   // Listen for payment confirmation by walker (for wanderers)
+  // Instead of listening to payments collection, listen to the walk request
   useEffect(() => {
-    if (!isWandererView) return;
+    if (!isWandererView || !user || !requestId) return;
     
-    // Listen to payments collection for this requestId
-    const paymentsRef = collection(db, 'payments');
-    const paymentQuery = query(paymentsRef, where('requestId', '==', requestId));
+    console.log('Setting up walk request listener for payment status:', requestId);
     
-    const unsub = onSnapshot(paymentQuery, (snapshot) => {
-      if (snapshot.empty) return;
-      
-      // Get the latest payment record
-      const paymentDoc = snapshot.docs[0];
-      const data = paymentDoc.data();
-      
-      // If walker confirmed payment, redirect wanderer to success
-      if (
-        data.status === 'paid' || 
-        data.upi?.verification === 'walker_confirmed'
-      ) {
-        navigation.replace('PaymentSuccess', {
-          amount: data.totalPayable || data.fare || 0,
-          method: data.method || 'upi',
-          walkerName: data.walkerName || walkerName,
-          isWandererView: true,
-        });
+    // Listen to the walk request document which wanderer has permission to read
+    const requestRef = doc(db, 'walkRequests', requestId);
+    
+    const unsub = onSnapshot(
+      requestRef,
+      (snapshot) => {
+        if (!snapshot.exists()) return;
+        
+        const data = snapshot.data();
+        console.log('Walk request data:', data);
+        
+        // Check if payment is confirmed (we'll add this field when walker confirms)
+        if (data.paymentConfirmed === true) {
+          console.log('Payment confirmed via walk request, redirecting to success');
+          navigation.replace('PaymentSuccess', {
+            amount: fareBreakdown?.total || 0,
+            method: data.paymentMethod || 'upi',
+            walkerName: walkerName,
+            isWandererView: true,
+            walkerId: walkerId,
+            wandererId: user.uid,
+            requestId: requestId,
+          });
+        }
+      },
+      (error) => {
+        console.error('Walk request listener error:', error);
       }
-    });
+    );
     
     return () => unsub();
-  }, [isWandererView, requestId, navigation, walkerName]);
+  }, [isWandererView, requestId, navigation, walkerName, user, fareBreakdown]);
 
   const loadPricingAndCalculate = async () => {
     try {
@@ -206,14 +217,27 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     }
   };
 
-  const handleCashConfirm = async (pId: string) => {
+  const handlePaymentReceivedConfirm = () => {
+    setShowPaymentReceivedModal(false);
+    navigation.replace('PaymentSuccess', {
+      amount: fareBreakdown!.total,
+      method: 'upi',
+      walkerName,
+      isWandererView,
+      walkerId,
+      wandererId: user!.uid,
+      requestId,
+    });
+  };
+
+  const handleCashConfirm = async (newPaymentId: string) => {
     try {
       setProcessing(true);
       
       // For now, we'll mark as confirmed from wanderer side
       // In production, both sides should confirm
       await updatePaymentCash(
-        pId,
+        newPaymentId,
         walkerId,
         !isWandererView, // walker confirms
         isWandererView   // wanderer confirms
@@ -475,26 +499,44 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
         {/* Wanderer View - Payment Method Selection */}
         {isWandererView && !selectedMethod && (
           <View style={styles.methodContainer}>
-            <Text style={styles.methodTitle}>Select Payment Method</Text>
+            <Text style={styles.methodTitle}>Choose Payment Method</Text>
             
+            {/* UPI Payment Card */}
             <TouchableOpacity
-              style={styles.methodButton}
+              style={styles.methodCard}
               onPress={() => setSelectedMethod('upi')}
               disabled={processing}
+              activeOpacity={0.7}
             >
-              <MaterialIcons name="payment" size={24} color="#FFFFFF" />
-              <Text style={styles.methodButtonText}>Pay via UPI</Text>
-              <Text style={styles.methodButtonSubtext}>Scan walker's QR code</Text>
+              <View style={styles.methodIconContainer}>
+                <View style={styles.methodIconCircle}>
+                  <MaterialIcons name="account-balance" size={32} color="#6366F1" />
+                </View>
+              </View>
+              <View style={styles.methodContent}>
+                <Text style={styles.methodCardTitle}>UPI Payment</Text>
+                <Text style={styles.methodCardSubtitle}>PhonePe • GPay • Paytm</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={28} color="#CCCCCC" />
             </TouchableOpacity>
 
+            {/* Cash Payment Card */}
             <TouchableOpacity
-              style={[styles.methodButton, styles.methodButtonCash]}
+              style={styles.methodCard}
               onPress={() => setSelectedMethod('cash')}
               disabled={processing}
+              activeOpacity={0.7}
             >
-              <MaterialIcons name="money" size={24} color="#FFFFFF" />
-              <Text style={styles.methodButtonText}>Pay Cash</Text>
-              <Text style={styles.methodButtonSubtext}>Pay walker in person</Text>
+              <View style={styles.methodIconContainer}>
+                <View style={[styles.methodIconCircle, styles.methodIconCircleCash]}>
+                  <MaterialIcons name="payments" size={32} color="#10B981" />
+                </View>
+              </View>
+              <View style={styles.methodContent}>
+                <Text style={styles.methodCardTitle}>Cash Payment</Text>
+                <Text style={styles.methodCardSubtitle}>Pay directly to walker</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={28} color="#CCCCCC" />
             </TouchableOpacity>
           </View>
         )}
@@ -589,23 +631,16 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
                     'walker_confirmed'
                   );
                   
-                  setProcessing(false);
+                  // Update walk request to notify wanderer
+                  const requestRef = doc(db, 'walkRequests', requestId);
+                  await updateDoc(requestRef, {
+                    paymentConfirmed: true,
+                    paymentMethod: 'upi',
+                    paymentConfirmedAt: new Date(),
+                  });
                   
-                  Alert.alert(
-                    'Payment Confirmed',
-                    'Payment has been marked as received',
-                    [
-                      {
-                        text: 'OK',
-                        onPress: () => navigation.replace('PaymentSuccess', {
-                          amount: fareBreakdown.total,
-                          method: 'upi',
-                          walkerName,
-                          isWandererView,
-                        })
-                      }
-                    ]
-                  );
+                  setProcessing(false);
+                  setShowPaymentReceivedModal(true);
                 } catch (error) {
                   console.error('Error confirming payment:', error);
                   Alert.alert('Error', 'Failed to confirm payment');
@@ -763,6 +798,35 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
               )}
             </TouchableOpacity>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Payment Received Confirmation Modal */}
+      <Modal
+        visible={showPaymentReceivedModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPaymentReceivedModal(false)}
+      >
+        <View style={styles.paymentReceivedModalOverlay}>
+          <View style={styles.paymentReceivedModalContent}>
+            <View style={styles.paymentReceivedIconContainer}>
+              <MaterialIcons name="check-circle" size={64} color="#10B981" />
+            </View>
+            
+            <Text style={styles.paymentReceivedModalTitle}>Payment Confirmed!</Text>
+            <Text style={styles.paymentReceivedModalMessage}>
+              Payment has been successfully marked as received. The walk is now complete.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.paymentReceivedConfirmButton}
+              onPress={handlePaymentReceivedConfirm}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.paymentReceivedConfirmButtonText}>Continue</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1005,12 +1069,57 @@ const styles = StyleSheet.create({
   },
   methodContainer: {
     marginTop: 20,
+    marginBottom: 20,
   },
   methodTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  methodCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  methodIconContainer: {
+    marginRight: 16,
+  },
+  methodIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  methodIconCircleCash: {
+    backgroundColor: '#D1FAE5',
+  },
+  methodContent: {
+    flex: 1,
+  },
+  methodCardTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#000000',
-    marginBottom: 15,
+    marginBottom: 4,
+  },
+  methodCardSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   methodButton: {
     backgroundColor: '#10B981',
@@ -1401,6 +1510,67 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   paymentReceivedButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  paymentReceivedModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  paymentReceivedModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 30,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  paymentReceivedIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#D1FAE5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  paymentReceivedModalTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  paymentReceivedModalMessage: {
+    fontSize: 16,
+    color: '#666666',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 30,
+  },
+  paymentReceivedConfirmButton: {
+    backgroundColor: '#10B981',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  paymentReceivedConfirmButtonText: {
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',

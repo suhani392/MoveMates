@@ -13,6 +13,7 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -48,6 +49,9 @@ const WandererUpdatesScreen: React.FC<WandererUpdatesScreenProps> = ({ navigatio
   const [cancelReason, setCancelReason] = useState('');
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [selectedWandererId, setSelectedWandererId] = useState<string | null>(null);
+  const [showStartWalkModal, setShowStartWalkModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<WalkRequest | null>(null);
+  const [checkingLocation, setCheckingLocation] = useState(false);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -288,40 +292,146 @@ const WandererUpdatesScreen: React.FC<WandererUpdatesScreenProps> = ({ navigatio
     }
   };
 
-  const handleStartWalk = async (request: WalkRequest) => {
-    Alert.alert(
-      'Start Walk',
-      'Are you ready to start the walk?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Start',
-          onPress: async () => {
-            try {
-              // Update status to in_progress
-              const requestRef = doc(db, 'walkRequests', request.id);
-              await updateDoc(requestRef, {
-                status: 'in_progress',
-                startedAt: new Date(),
-              });
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
 
-              // Navigate to live walk tracking screen
-              navigation.navigate('LiveWalkTracking', {
-                requestId: request.id,
-                wandererName: request.wandererName,
-                wandererPhone: request.wandererPhone,
-              });
-            } catch (error) {
-              console.error('Error starting walk:', error);
-              Alert.alert('Error', 'Failed to start the walk. Please try again.');
-            }
-          },
-        },
-      ]
-    );
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  };
+
+  const handleStartWalk = async (request: WalkRequest) => {
+    setCheckingLocation(true);
+    
+    try {
+      // Request location permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Location Permission Required',
+          'Please enable location access to start the walk. We need to verify you are at the pickup location.',
+          [{ text: 'OK' }]
+        );
+        setCheckingLocation(false);
+        return;
+      }
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      console.log('Walker location:', location.coords);
+      console.log('Pickup location:', request.pickup);
+
+      // Geocode the pickup address to get coordinates
+      try {
+        const geocodedLocation = await Location.geocodeAsync(request.pickup);
+        
+        if (geocodedLocation && geocodedLocation.length > 0) {
+          const pickupCoords = geocodedLocation[0];
+          const distance = calculateDistance(
+            location.coords.latitude,
+            location.coords.longitude,
+            pickupCoords.latitude,
+            pickupCoords.longitude
+          );
+
+          console.log('Distance to pickup:', distance, 'meters');
+
+          // Check if walker is within 300 meters of pickup location
+          const REQUIRED_DISTANCE = 300; // meters
+          
+          if (distance > REQUIRED_DISTANCE) {
+            Alert.alert(
+              'Too Far from Pickup Location',
+              `You are ${Math.round(distance)} meters away from the pickup location. Please move closer (within ${REQUIRED_DISTANCE}m) to start the walk.\n\nPickup: ${request.pickup}`,
+              [{ text: 'OK' }]
+            );
+            setCheckingLocation(false);
+            return;
+          }
+
+          // Walker is close enough, proceed
+          console.log('Walker is within range, allowing start');
+        } else {
+          // Could not geocode address, show warning but allow to proceed
+          Alert.alert(
+            'Location Verification',
+            'Could not verify pickup location. Please ensure you are at:\n\n' + request.pickup,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => { setCheckingLocation(false); } },
+              { text: 'I am at pickup', onPress: () => {
+                setSelectedRequest(request);
+                setShowStartWalkModal(true);
+              }}
+            ]
+          );
+          setCheckingLocation(false);
+          return;
+        }
+      } catch (geocodeError) {
+        console.error('Geocoding error:', geocodeError);
+        // Geocoding failed, show warning but allow to proceed
+        Alert.alert(
+          'Location Verification',
+          'Could not verify pickup location. Please ensure you are at:\n\n' + request.pickup,
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => { setCheckingLocation(false); } },
+            { text: 'I am at pickup', onPress: () => {
+              setSelectedRequest(request);
+              setShowStartWalkModal(true);
+            }}
+          ]
+        );
+        setCheckingLocation(false);
+        return;
+      }
+      
+      setSelectedRequest(request);
+      setShowStartWalkModal(true);
+      
+    } catch (error) {
+      console.error('Error getting location:', error);
+      Alert.alert(
+        'Location Error',
+        'Unable to get your current location. Please ensure GPS is enabled and try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setCheckingLocation(false);
+    }
+  };
+
+  const confirmStartWalk = async () => {
+    if (!selectedRequest) return;
+    
+    setShowStartWalkModal(false);
+    try {
+      // Update status to in_progress
+      const requestRef = doc(db, 'walkRequests', selectedRequest.id);
+      await updateDoc(requestRef, {
+        status: 'in_progress',
+        startedAt: new Date(),
+      });
+
+      // Navigate to live walk tracking screen
+      navigation.navigate('LiveWalkTracking', {
+        requestId: selectedRequest.id,
+        wandererName: selectedRequest.wandererName,
+        wandererPhone: selectedRequest.wandererPhone,
+      });
+    } catch (error) {
+      console.error('Error starting walk:', error);
+      Alert.alert('Error', 'Failed to start the walk. Please try again.');
+    }
   };
 
   const handleViewLiveTracking = (request: WalkRequest) => {
@@ -468,9 +578,19 @@ const WandererUpdatesScreen: React.FC<WandererUpdatesScreenProps> = ({ navigatio
                     style={styles.startWalkButton}
                     onPress={() => handleStartWalk(request)}
                     activeOpacity={0.8}
+                    disabled={checkingLocation}
                   >
-                    <MaterialIcons name="directions-walk" size={22} color="#FFFFFF" />
-                    <Text style={styles.startWalkButtonText}>Start Walk</Text>
+                    {checkingLocation ? (
+                      <>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <Text style={styles.startWalkButtonText}>Checking Location...</Text>
+                      </>
+                    ) : (
+                      <>
+                        <MaterialIcons name="directions-walk" size={22} color="#FFFFFF" />
+                        <Text style={styles.startWalkButtonText}>Start Walk</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 )
               )}
@@ -569,6 +689,44 @@ const WandererUpdatesScreen: React.FC<WandererUpdatesScreenProps> = ({ navigatio
                 onPress={handleCancelWalk}
               >
                 <Text style={styles.modalConfirmButtonText}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Start Walk Confirmation Modal */}
+      <Modal
+        visible={showStartWalkModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowStartWalkModal(false)}
+      >
+        <View style={styles.startWalkModalOverlay}>
+          <View style={styles.startWalkModalContent}>
+            <View style={styles.startWalkIconContainer}>
+              <MaterialIcons name="directions-walk" size={64} color="#22C55E" />
+            </View>
+            
+            <Text style={styles.startWalkModalTitle}>Start Walk?</Text>
+            <Text style={styles.startWalkModalMessage}>
+              Are you ready to start the walk with {selectedRequest?.wandererName}?
+            </Text>
+
+            <View style={styles.startWalkModalButtons}>
+              <TouchableOpacity
+                style={styles.startWalkCancelButton}
+                onPress={() => setShowStartWalkModal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.startWalkCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.startWalkConfirmButton}
+                onPress={confirmStartWalk}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.startWalkConfirmButtonText}>Start Walk</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -826,6 +984,80 @@ const styles = StyleSheet.create({
     color: '#666666',
   },
   modalConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  startWalkModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  startWalkModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 30,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  startWalkIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#D1FAE5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  startWalkModalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  startWalkModalMessage: {
+    fontSize: 16,
+    color: '#666666',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 30,
+  },
+  startWalkModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  startWalkCancelButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  startWalkCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  startWalkConfirmButton: {
+    flex: 1,
+    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  startWalkConfirmButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',

@@ -69,53 +69,38 @@ const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ navigation }) => 
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={28} color={colors.text} />
+            <MaterialIcons name="arrow-back" size={28} color="#000000" />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('preferences')}</Text>
+          <Text style={styles.headerTitle}>{t('preferences')}</Text>
         </View>
+
+        {/* Description */}
+        <Text style={styles.description}>
+          Customize your app experience
+        </Text>
 
         {loading ? (
-          <ActivityIndicator size="large" color="#000" style={{ marginTop: 50 }} />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#000000" />
+            <Text style={styles.loadingText}>Loading preferences...</Text>
+          </View>
         ) : (
           <>
-        {/* Appearance Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Appearance</Text>
-          
-          <View style={[styles.preferenceCard, { backgroundColor: colors.card }]}>
-            <View style={styles.preferenceInfo}>
-              <MaterialIcons name="brightness-6" size={24} color={colors.primary} />
-              <View style={styles.preferenceText}>
-                <Text style={[styles.preferenceName, { color: colors.text }]}>{t('darkMode')}</Text>
-                <Text style={[styles.preferenceDescription, { color: colors.textSecondary }]}>
-                  {t('darkModeDesc')}
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={isDark}
-              onValueChange={toggleTheme}
-              trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-              thumbColor={isDark ? '#22C55E' : '#F3F4F6'}
-            />
-          </View>
-        </View>
-
         {/* Behavior Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Behavior</Text>
+          <Text style={styles.sectionTitle}>Behavior</Text>
           
-          <View style={[styles.preferenceCard, { backgroundColor: colors.card }]}>
+          <View style={styles.preferenceCard}>
             <View style={styles.preferenceInfo}>
-              <MaterialIcons name="location-on" size={24} color={colors.success} />
+              <MaterialIcons name="location-on" size={24} color="#059669" />
               <View style={styles.preferenceText}>
-                <Text style={[styles.preferenceName, { color: colors.text }]}>{t('autoLocation')}</Text>
-                <Text style={[styles.preferenceDescription, { color: colors.textSecondary }]}>
+                <Text style={styles.preferenceName}>{t('autoLocation')}</Text>
+                <Text style={styles.preferenceDescription}>
                   {t('autoLocationDesc')}
                 </Text>
               </View>
@@ -131,14 +116,14 @@ const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ navigation }) => 
 
         {/* Feedback Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Feedback</Text>
+          <Text style={styles.sectionTitle}>Feedback</Text>
           
-          <View style={[styles.preferenceCard, { backgroundColor: colors.card }]}>
+          <View style={styles.preferenceCard}>
             <View style={styles.preferenceInfo}>
-              <MaterialIcons name="volume-up" size={24} color={colors.warning} />
+              <MaterialIcons name="volume-up" size={24} color="#F59E0B" />
               <View style={styles.preferenceText}>
-                <Text style={[styles.preferenceName, { color: colors.text }]}>{t('soundEffects')}</Text>
-                <Text style={[styles.preferenceDescription, { color: colors.textSecondary }]}>
+                <Text style={styles.preferenceName}>{t('soundEffects')}</Text>
+                <Text style={styles.preferenceDescription}>
                   {t('soundEffectsDesc')}
                 </Text>
               </View>
@@ -151,12 +136,12 @@ const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ navigation }) => 
             />
           </View>
 
-          <View style={[styles.preferenceCard, { backgroundColor: colors.card }]}>
+          <View style={styles.preferenceCard}>
             <View style={styles.preferenceInfo}>
-              <MaterialIcons name="vibration" size={24} color={colors.warning} />
+              <MaterialIcons name="vibration" size={24} color="#EC4899" />
               <View style={styles.preferenceText}>
-                <Text style={[styles.preferenceName, { color: colors.text }]}>Vibration</Text>
-                <Text style={[styles.preferenceDescription, { color: colors.textSecondary }]}>
+                <Text style={styles.preferenceName}>Vibration</Text>
+                <Text style={styles.preferenceDescription}>
                   Vibrate for notifications
                 </Text>
               </View>
@@ -171,7 +156,7 @@ const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ navigation }) => 
         </View>
 
         {/* Save Button */}
-        <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.primary }]} activeOpacity={0.8} onPress={handleSave}>
+        <TouchableOpacity style={styles.saveButton} activeOpacity={0.8} onPress={handleSave}>
           <Text style={styles.saveButtonText}>{t('save')}</Text>
         </TouchableOpacity>
         </>
@@ -184,6 +169,7 @@ const PreferencesScreen: React.FC<PreferencesScreenProps> = ({ navigation }) => 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
@@ -268,6 +254,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 50,
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#666666',
   },
 });
 

@@ -35,27 +35,27 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('general')}</Text>
           <TouchableOpacity 
-            style={[styles.card, styles.generalCard, { backgroundColor: colors.card }]}
+            style={[styles.card, styles.generalCard]}
             onPress={() => navigation.navigate('Language')}
           >
-            <Text style={[styles.cardText, { color: colors.text }]}>{t('language')}</Text>
-            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
+            <Text style={styles.cardText}>{t('language')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.card, styles.generalCard, { backgroundColor: colors.card }]}
+            style={[styles.card, styles.generalCard]}
             onPress={() => navigation.navigate('RoleChange')}
           >
-            <Text style={[styles.cardText, { color: colors.text }]}>{t('roleChange')}</Text>
-            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
+            <Text style={styles.cardText}>{t('roleChange')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.card, styles.generalCard, { backgroundColor: colors.card }]}
+            style={[styles.card, styles.generalCard]}
             onPress={() => navigation.navigate('Preferences')}
           >
-            <Text style={[styles.cardText, { color: colors.text }]}>{t('preferences')}</Text>
-            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
+            <Text style={styles.cardText}>{t('preferences')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
         </View>
 
@@ -63,19 +63,19 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Notifications</Text>
           <TouchableOpacity 
-            style={[styles.card, styles.notificationCard, { backgroundColor: colors.card }]}
+            style={[styles.card, styles.notificationCard]}
             onPress={() => navigation.navigate('PushNotifications')}
           >
-            <Text style={[styles.cardText, { color: colors.text }]}>{t('pushNotifications')}</Text>
-            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
+            <Text style={styles.cardText}>{t('pushNotifications')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.card, styles.notificationCard, { backgroundColor: colors.card }]}
+            style={[styles.card, styles.notificationCard]}
             onPress={() => navigation.navigate('EmailNotifications')}
           >
-            <Text style={[styles.cardText, { color: colors.text }]}>{t('emailNotifications')}</Text>
-            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
+            <Text style={styles.cardText}>{t('emailNotifications')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
         </View>
 
@@ -83,27 +83,27 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('privacy')}</Text>
           <TouchableOpacity 
-            style={[styles.card, styles.privacyCard, { backgroundColor: colors.card }]}
+            style={[styles.card, styles.privacyCard]}
             onPress={() => navigation.navigate('LocationSharing')}
           >
-            <Text style={[styles.cardText, { color: colors.text }]}>{t('locationSharing')}</Text>
-            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
+            <Text style={styles.cardText}>{t('locationSharing')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.card, styles.privacyCard, { backgroundColor: colors.card }]}
+            style={[styles.card, styles.privacyCard]}
             onPress={() => navigation.navigate('ContactsSharing')}
           >
-            <Text style={[styles.cardText, { color: colors.text }]}>{t('contactsSharing')}</Text>
-            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
+            <Text style={styles.cardText}>{t('contactsSharing')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.card, styles.privacyCard, { backgroundColor: colors.card }]}
+            style={[styles.card, styles.privacyCard]}
             onPress={() => navigation.navigate('DataUsage')}
           >
-            <Text style={[styles.cardText, { color: colors.text }]}>{t('dataUsage')}</Text>
-            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
+            <Text style={styles.cardText}>{t('dataUsage')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
         </View>
 
@@ -111,11 +111,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('history')}</Text>
           <TouchableOpacity 
-            style={[styles.card, styles.historyCard, { backgroundColor: colors.card }]}
+            style={[styles.card, styles.historyCard]}
             onPress={() => navigation.navigate('WalkHistory')}
           >
-            <Text style={[styles.cardText, { color: colors.text }]}>{t('walkHistory')}</Text>
-            <MaterialIcons name="chevron-right" size={24} color={colors.text} />
+            <Text style={styles.cardText}>{t('walkHistory')}</Text>
+            <MaterialIcons name="chevron-right" size={24} color="#000000" />
           </TouchableOpacity>
         </View>
       </ScrollView>

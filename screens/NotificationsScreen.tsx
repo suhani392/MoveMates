@@ -289,6 +289,11 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ navigation })
                     <Text style={styles.notificationMessage} numberOfLines={2}>
                       {notification.message}
                     </Text>
+                    {notification.type === 'walk_accepted' && notification.relatedUserName && (
+                      <Text style={styles.notificationSubtext} numberOfLines={1}>
+                        {notification.relatedUserName} has accepted your walk request
+                      </Text>
+                    )}
                     <Text style={styles.notificationTime}>
                       {getTimeAgo(notification.timestamp)}
                     </Text>
@@ -526,6 +531,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666666',
     lineHeight: 20,
+    marginBottom: 6,
+  },
+  notificationSubtext: {
+    fontSize: 13,
+    color: '#22C55E',
+    fontWeight: '600',
     marginBottom: 6,
   },
   notificationTime: {

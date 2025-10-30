@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,20 +7,99 @@ import {
   ScrollView,
   SafeAreaView,
   Switch,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 
 type LocationSharingScreenProps = {
   navigation: StackNavigationProp<any>;
 };
 
+const LOCATION_SETTINGS_KEY = '@location_settings';
+
 const LocationSharingScreen: React.FC<LocationSharingScreenProps> = ({ navigation }) => {
   const [locationSharing, setLocationSharing] = useState(true);
-  const [liveTracking, setLiveTracking] = useState(true);
   const [shareWithWalker, setShareWithWalker] = useState(true);
-  const [shareWithWanderer, setShareWithWanderer] = useState(true);
   const [preciseLocation, setPreciseLocation] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(LOCATION_SETTINGS_KEY);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        setLocationSharing(settings.locationSharing ?? true);
+        setShareWithWalker(settings.shareWithWalker ?? true);
+        setPreciseLocation(settings.preciseLocation ?? false);
+      }
+    } catch (error) {
+      console.error('Error loading location settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLocationSharingToggle = async (value: boolean) => {
+    if (value) {
+      // Request location permission when enabling
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Location permission is required to enable location sharing. Please grant permission in your device settings.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+    setLocationSharing(value);
+  };
+
+  const saveSettings = async () => {
+    try {
+      setSaving(true);
+      
+      const settings = {
+        locationSharing,
+        shareWithWalker,
+        preciseLocation,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await AsyncStorage.setItem(LOCATION_SETTINGS_KEY, JSON.stringify(settings));
+      
+      Alert.alert(
+        'Success',
+        'Location sharing settings saved successfully!',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    } catch (error) {
+      console.error('Error saving location settings:', error);
+      Alert.alert('Error', 'Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#000000" />
+          <Text style={styles.loadingText}>Loading settings...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -59,7 +138,7 @@ const LocationSharingScreen: React.FC<LocationSharingScreenProps> = ({ navigatio
           </View>
           <Switch
             value={locationSharing}
-            onValueChange={setLocationSharing}
+            onValueChange={handleLocationSharingToggle}
             trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
             thumbColor={locationSharing ? '#22C55E' : '#F3F4F6'}
           />
@@ -69,25 +148,6 @@ const LocationSharingScreen: React.FC<LocationSharingScreenProps> = ({ navigatio
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Sharing Options</Text>
           
-          <View style={styles.settingCard}>
-            <View style={styles.settingInfo}>
-              <MaterialIcons name="my-location" size={24} color="#EF4444" />
-              <View style={styles.settingText}>
-                <Text style={styles.settingName}>Live Tracking</Text>
-                <Text style={styles.settingDescription}>
-                  Share real-time location during walks
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={liveTracking}
-              onValueChange={setLiveTracking}
-              disabled={!locationSharing}
-              trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-              thumbColor={liveTracking ? '#22C55E' : '#F3F4F6'}
-            />
-          </View>
-
           <View style={styles.settingCard}>
             <View style={styles.settingInfo}>
               <MaterialIcons name="gps-fixed" size={24} color="#5B21B6" />
@@ -106,19 +166,14 @@ const LocationSharingScreen: React.FC<LocationSharingScreenProps> = ({ navigatio
               thumbColor={preciseLocation ? '#22C55E' : '#F3F4F6'}
             />
           </View>
-        </View>
 
-        {/* Share With Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Share With</Text>
-          
           <View style={styles.settingCard}>
             <View style={styles.settingInfo}>
               <MaterialIcons name="accessibility-new" size={24} color="#059669" />
               <View style={styles.settingText}>
                 <Text style={styles.settingName}>Share with Walker</Text>
                 <Text style={styles.settingDescription}>
-                  Let walkers see your location
+                  Let walkers see your location during walks
                 </Text>
               </View>
             </View>
@@ -128,25 +183,6 @@ const LocationSharingScreen: React.FC<LocationSharingScreenProps> = ({ navigatio
               disabled={!locationSharing}
               trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
               thumbColor={shareWithWalker ? '#22C55E' : '#F3F4F6'}
-            />
-          </View>
-
-          <View style={styles.settingCard}>
-            <View style={styles.settingInfo}>
-              <MaterialIcons name="directions-walk" size={24} color="#3B82F6" />
-              <View style={styles.settingText}>
-                <Text style={styles.settingName}>Share with Wanderer</Text>
-                <Text style={styles.settingDescription}>
-                  Let wanderers see your location
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={shareWithWanderer}
-              onValueChange={setShareWithWanderer}
-              disabled={!locationSharing}
-              trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-              thumbColor={shareWithWanderer ? '#22C55E' : '#F3F4F6'}
             />
           </View>
         </View>
@@ -160,8 +196,20 @@ const LocationSharingScreen: React.FC<LocationSharingScreenProps> = ({ navigatio
         </View>
 
         {/* Save Button */}
-        <TouchableOpacity style={styles.saveButton} activeOpacity={0.8}>
-          <Text style={styles.saveButtonText}>Save Settings</Text>
+        <TouchableOpacity 
+          style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
+          activeOpacity={0.8}
+          onPress={saveSettings}
+          disabled={saving}
+        >
+          {saving ? (
+            <>
+              <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 10 }} />
+              <Text style={styles.saveButtonText}>Saving...</Text>
+            </>
+          ) : (
+            <Text style={styles.saveButtonText}>Save Settings</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -281,6 +329,8 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     paddingVertical: 16,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
     marginTop: 10,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
@@ -288,10 +338,23 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
   saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#666666',
   },
 });
 

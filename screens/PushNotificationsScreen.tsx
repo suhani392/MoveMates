@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,19 @@ import {
   ScrollView,
   SafeAreaView,
   Switch,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+// import * as Notifications from 'expo-notifications'; // Requires development build
 
 type PushNotificationsScreenProps = {
   navigation: StackNavigationProp<any>;
 };
+
+const PUSH_SETTINGS_KEY = '@push_notification_settings';
 
 const PushNotificationsScreen: React.FC<PushNotificationsScreenProps> = ({ navigation }) => {
   const [allNotifications, setAllNotifications] = useState(true);
@@ -24,8 +30,80 @@ const PushNotificationsScreen: React.FC<PushNotificationsScreenProps> = ({ navig
   const [reminders, setReminders] = useState(true);
   const [updates, setUpdates] = useState(false);
   const [promotions, setPromotions] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const handleToggleAll = (value: boolean) => {
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(PUSH_SETTINGS_KEY);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        setAllNotifications(settings.allNotifications ?? true);
+        setWalkRequests(settings.walkRequests ?? true);
+        setWalkAccepted(settings.walkAccepted ?? true);
+        setWalkCompleted(settings.walkCompleted ?? true);
+        setMessages(settings.messages ?? true);
+        setReminders(settings.reminders ?? true);
+        setUpdates(settings.updates ?? false);
+        setPromotions(settings.promotions ?? false);
+      }
+    } catch (error) {
+      console.error('Error loading push notification settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveSettings = async () => {
+    try {
+      setSaving(true);
+      
+      const settings = {
+        allNotifications,
+        walkRequests,
+        walkAccepted,
+        walkCompleted,
+        messages,
+        reminders,
+        updates,
+        promotions,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await AsyncStorage.setItem(PUSH_SETTINGS_KEY, JSON.stringify(settings));
+      
+      Alert.alert(
+        'Success',
+        'Push notification preferences saved successfully!',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    } catch (error) {
+      console.error('Error saving push notification settings:', error);
+      Alert.alert('Error', 'Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleAll = async (value: boolean) => {
+    // Note: Notification permissions require a development build
+    // Uncomment when using development build or production APK
+    // if (value) {
+    //   const { status } = await Notifications.requestPermissionsAsync();
+    //   if (status !== 'granted') {
+    //     Alert.alert(
+    //       'Permission Required',
+    //       'Push notification permission is required. Please enable notifications in your device settings.',
+    //       [{ text: 'OK' }]
+    //     );
+    //     return;
+    //   }
+    // }
+    
     setAllNotifications(value);
     if (!value) {
       setWalkRequests(false);
@@ -37,6 +115,17 @@ const PushNotificationsScreen: React.FC<PushNotificationsScreenProps> = ({ navig
       setPromotions(false);
     }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#000000" />
+          <Text style={styles.loadingText}>Loading settings...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -222,8 +311,20 @@ const PushNotificationsScreen: React.FC<PushNotificationsScreenProps> = ({ navig
         </View>
 
         {/* Save Button */}
-        <TouchableOpacity style={styles.saveButton} activeOpacity={0.8}>
-          <Text style={styles.saveButtonText}>Save Settings</Text>
+        <TouchableOpacity 
+          style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
+          activeOpacity={0.8}
+          onPress={saveSettings}
+          disabled={saving}
+        >
+          {saving ? (
+            <>
+              <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 10 }} />
+              <Text style={styles.saveButtonText}>Saving...</Text>
+            </>
+          ) : (
+            <Text style={styles.saveButtonText}>Save Settings</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -311,6 +412,8 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     paddingVertical: 16,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
     marginTop: 10,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
@@ -318,10 +421,23 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
   saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#666666',
   },
 });
 

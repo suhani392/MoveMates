@@ -92,7 +92,7 @@ const LanguageScreen: React.FC<LanguageScreenProps> = ({ navigation }) => {
         </View>
 
         {/* Save Button */}
-        <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.primary }]} activeOpacity={0.8} onPress={handleSave}>
+        <TouchableOpacity style={styles.saveButton} activeOpacity={0.8} onPress={handleSave}>
           <Text style={styles.saveButtonText}>{t('save')}</Text>
         </TouchableOpacity>
       </ScrollView>

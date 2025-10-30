@@ -398,6 +398,16 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
               style={styles.drawerItem} 
               onPress={() => { 
                 closeDrawer();
+                navigation.navigate('WalkersList');
+              }}
+            >
+              <Text style={styles.drawerText}>Walkers</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.drawerItem} 
+              onPress={() => { 
+                closeDrawer();
                 navigation.navigate('ContactUs');
               }}
             >

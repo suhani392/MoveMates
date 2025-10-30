@@ -75,8 +75,28 @@ const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigat
       return;
     }
     
-    // Note: Time is always set with default values (10:00 AM), so no need to validate
-    // But we can add a check if needed
+    // Validate that the selected date and time is not in the past
+    const now = new Date();
+    const selectedDateTime = new Date(selectedDate);
+    
+    // Convert 12-hour format to 24-hour format
+    let hour24 = selectedHour;
+    if (selectedPeriod === 'PM' && selectedHour !== 12) {
+      hour24 = selectedHour + 12;
+    } else if (selectedPeriod === 'AM' && selectedHour === 12) {
+      hour24 = 0;
+    }
+    
+    selectedDateTime.setHours(hour24, selectedMinute, 0, 0);
+    
+    if (selectedDateTime <= now) {
+      Alert.alert(
+        'Invalid Time',
+        'Please select a future date and time. The selected time has already passed.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     
     // Validate preference is selected (it has a default value, but we check anyway)
     if (!selectedPreference) {

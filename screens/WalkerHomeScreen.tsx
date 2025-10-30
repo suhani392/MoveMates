@@ -275,12 +275,12 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
                 {/* Show different format based on walkType */}
                 {request.walkType === 'route' || !request.walkType ? (
                   <>
-                    <Text style={styles.requestInfo}>Pickup: {request.pickup}</Text>
-                    <Text style={styles.requestInfo}>Destination: {request.destination}</Text>
+                    <Text style={styles.requestInfo} numberOfLines={1} ellipsizeMode="tail">Pickup: {request.pickup}</Text>
+                    <Text style={styles.requestInfo} numberOfLines={1} ellipsizeMode="tail">Destination: {request.destination}</Text>
                   </>
                 ) : (
                   <>
-                    <Text style={styles.requestInfo}>Location: {request.pickup || request.meetingPoint}</Text>
+                    <Text style={styles.requestInfo} numberOfLines={1} ellipsizeMode="tail">Location: {request.pickup || request.meetingPoint}</Text>
                     <Text style={styles.requestInfo}>Type: {
                       request.walkType === 'nearby' ? 'Nearby Walk' :
                       request.walkType === 'exploringWalk' ? 'Exploring Walk' :
@@ -296,15 +296,6 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
                 
                   <Text style={styles.requestInfo}>Date: {request.scheduledDate}</Text>
                   <Text style={styles.requestInfo}>Time: {request.scheduledTime}</Text>
-                  {request.preference && (
-                <Text style={styles.requestInfo}>Preference: {request.preference}</Text>
-                  )}
-                  {request.pricePerHour && (
-                    <Text style={styles.requestInfo}>Rate: ₹{request.pricePerHour}/hour</Text>
-                  )}
-                  {request.estimatedDuration && (
-                    <Text style={styles.requestInfo}>Est. Duration: {request.estimatedDuration}</Text>
-                  )}
                 </View>
               </View>
 

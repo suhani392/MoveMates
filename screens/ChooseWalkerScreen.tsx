@@ -12,7 +12,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 type ChooseWalkerScreenProps = {
@@ -73,6 +73,28 @@ const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, rou
 
   const scheduleInfo = formatScheduleInfo();
 
+  // Calculate average rating for a walker from reviews
+  const calculateWalkerRating = async (walkerId: string): Promise<number> => {
+    try {
+      const reviewsRef = collection(db, 'reviews');
+      const reviewsQuery = query(reviewsRef, where('walkerId', '==', walkerId));
+      const reviewsSnapshot = await getDocs(reviewsQuery);
+      
+      if (reviewsSnapshot.empty) {
+        return 0;
+      }
+      
+      const reviews = reviewsSnapshot.docs.map(doc => doc.data());
+      const totalRating = reviews.reduce((sum, review) => sum + (review.rating || 0), 0);
+      const averageRating = totalRating / reviews.length;
+      
+      return Math.round(averageRating * 10) / 10; // Round to 1 decimal place
+    } catch (error) {
+      console.error('Error calculating rating for walker:', walkerId, error);
+      return 0;
+    }
+  };
+
   // Fetch walkers from Firestore (users with role "walker" and approved)
   useEffect(() => {
     const usersRef = collection(db, 'users');
@@ -84,11 +106,11 @@ const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, rou
 
     const unsubscribe = onSnapshot(
       walkersQuery,
-      (snapshot) => {
+      async (snapshot) => {
         console.log('Firestore query returned:', snapshot.size, 'walkers');
         
         if (!snapshot.empty) {
-          const walkersList: Walker[] = snapshot.docs.map((doc) => {
+          const walkersPromises = snapshot.docs.map(async (doc) => {
             const data = doc.data();
             console.log('Walker data:', data);
             // Determine availability based on multiple factors
@@ -101,6 +123,9 @@ const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, rou
             // 2. They are online
             // 3. They are not busy in a walk
             const isAvailable = availableToggle && isOnline && currentWalkStatus !== 'busy';
+            
+            // Calculate actual rating from reviews
+            const actualRating = await calculateWalkerRating(doc.id);
             
             return {
               id: doc.id,
@@ -119,13 +144,15 @@ const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, rou
               createdAt: data.createdAt,
               role: data.role || 'walker',
               image: data.image || data.profileImage || undefined,
-              rating: data.rating || 0,
+              rating: actualRating,
               available: isAvailable,
               isOnline: isOnline,
               currentWalkStatus: currentWalkStatus,
             };
           });
-          console.log('Walkers list created:', walkersList);
+          
+          const walkersList = await Promise.all(walkersPromises);
+          console.log('Walkers list created with ratings:', walkersList);
           setWalkers(walkersList);
         } else {
           console.log('No walkers found in Firestore');
@@ -163,7 +190,9 @@ const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, rou
             {/* Rating Badge on Bottom Right */}
             <View style={styles.ratingBadge}>
               <MaterialIcons name="star" size={14} color="#FFC107" />
-              <Text style={styles.ratingBadgeText}>{walker.rating || 0}</Text>
+              <Text style={styles.ratingBadgeText}>
+                {walker.rating ? walker.rating.toFixed(1) : '0.0'}
+              </Text>
             </View>
           </View>
 

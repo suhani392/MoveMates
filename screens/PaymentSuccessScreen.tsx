@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,14 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Animated,
+  Modal,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
+import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
+import { db, auth } from '../firebaseConfig';
 
 type PaymentSuccessScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -21,6 +24,9 @@ type PaymentSuccessScreenProps = {
         method: string;
         walkerName?: string;
         isWandererView: boolean;
+        walkerId?: string;
+        wandererId?: string;
+        requestId?: string;
       };
     },
     'params'
@@ -31,9 +37,12 @@ const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
   navigation,
   route,
 }) => {
-  const { amount, method, walkerName, isWandererView } = route.params;
+  const { amount, method, walkerName, isWandererView, walkerId, wandererId, requestId } = route.params;
   const { userData } = useAuth();
   const scaleAnim = new Animated.Value(0);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   useEffect(() => {
     // Animate checkmark
@@ -43,7 +52,63 @@ const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
       friction: 7,
       useNativeDriver: true,
     }).start();
+
+    // Show rating modal after 2 seconds
+    const timer = setTimeout(() => {
+      setShowRatingModal(true);
+    }, 2000);
+
+    return () => clearTimeout(timer);
   }, []);
+
+  const handleSubmitRating = async () => {
+    if (selectedRating === 0) return;
+
+    setSubmittingRating(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      // Get user name
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userName = userDoc.exists() ? userDoc.data()?.name || 'Anonymous' : 'Anonymous';
+
+      // Determine who is being rated
+      if (isWandererView && walkerId) {
+        // Wanderer is rating the walker
+        await addDoc(collection(db, 'reviews'), {
+          walkerId: walkerId,
+          userId: user.uid,
+          userName: userName,
+          rating: selectedRating,
+          createdAt: serverTimestamp(),
+          requestId: requestId || null,
+        });
+      } else if (!isWandererView && wandererId) {
+        // Walker is rating the wanderer
+        await addDoc(collection(db, 'reviews'), {
+          wandererId: wandererId,
+          userId: user.uid,
+          userName: userName,
+          rating: selectedRating,
+          createdAt: serverTimestamp(),
+          requestId: requestId || null,
+        });
+      }
+
+      setShowRatingModal(false);
+      setSelectedRating(0);
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+    } finally {
+      setSubmittingRating(false);
+    }
+  };
+
+  const handleSkipRating = () => {
+    setShowRatingModal(false);
+    setSelectedRating(0);
+  };
 
   const handleGoHome = () => {
     // Navigate to appropriate home screen based on role
@@ -134,23 +199,68 @@ const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
             <MaterialIcons name="home" size={24} color="#FFFFFF" />
             <Text style={styles.homeButtonText}>Go to Home</Text>
           </TouchableOpacity>
-
-          {isWandererView && (
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'RequestWalk' }],
-                });
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.secondaryButtonText}>Book Another Walk</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
+
+      {/* Rating Modal */}
+      <Modal
+        visible={showRatingModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={handleSkipRating}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.ratingModalContent}>
+            <Text style={styles.ratingModalTitle}>
+              Rate Your {isWandererView ? 'Walker' : 'Wanderer'}
+            </Text>
+            <Text style={styles.ratingModalSubtitle}>
+              How was your experience?
+            </Text>
+
+            {/* Star Rating */}
+            <View style={styles.starsContainer}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setSelectedRating(star)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons
+                    name="star"
+                    size={50}
+                    color={star <= selectedRating ? '#FFC107' : '#E0E0E0'}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.ratingModalButtons}>
+              <TouchableOpacity
+                style={styles.skipButton}
+                onPress={handleSkipRating}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.skipButtonText}>Skip</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.submitRatingButton,
+                  selectedRating === 0 && styles.submitRatingButtonDisabled,
+                ]}
+                onPress={handleSubmitRating}
+                disabled={selectedRating === 0 || submittingRating}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.submitRatingButtonText}>
+                  {submittingRating ? 'Submitting...' : 'Submit'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -287,6 +397,78 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginTop: 24,
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  ratingModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 30,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  ratingModalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  ratingModalSubtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 30,
+  },
+  ratingModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  skipButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  skipButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  submitRatingButton: {
+    flex: 1,
+    backgroundColor: '#000000',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  submitRatingButtonDisabled: {
+    opacity: 0.4,
+  },
+  submitRatingButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 

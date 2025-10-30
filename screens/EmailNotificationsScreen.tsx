@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,18 @@ import {
   ScrollView,
   SafeAreaView,
   Switch,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type EmailNotificationsScreenProps = {
   navigation: StackNavigationProp<any>;
 };
+
+const EMAIL_SETTINGS_KEY = '@email_notification_settings';
 
 const EmailNotificationsScreen: React.FC<EmailNotificationsScreenProps> = ({ navigation }) => {
   const [allEmails, setAllEmails] = useState(true);
@@ -24,6 +29,64 @@ const EmailNotificationsScreen: React.FC<EmailNotificationsScreenProps> = ({ nav
   const [newsletter, setNewsletter] = useState(false);
   const [tips, setTips] = useState(true);
   const [surveys, setSurveys] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(EMAIL_SETTINGS_KEY);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        setAllEmails(settings.allEmails ?? true);
+        setWalkSummary(settings.walkSummary ?? true);
+        setWeeklyReport(settings.weeklyReport ?? true);
+        setAccountActivity(settings.accountActivity ?? true);
+        setSecurityAlerts(settings.securityAlerts ?? true);
+        setNewsletter(settings.newsletter ?? false);
+        setTips(settings.tips ?? true);
+        setSurveys(settings.surveys ?? false);
+      }
+    } catch (error) {
+      console.error('Error loading email settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveSettings = async () => {
+    try {
+      setSaving(true);
+      
+      const settings = {
+        allEmails,
+        walkSummary,
+        weeklyReport,
+        accountActivity,
+        securityAlerts,
+        newsletter,
+        tips,
+        surveys,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await AsyncStorage.setItem(EMAIL_SETTINGS_KEY, JSON.stringify(settings));
+      
+      Alert.alert(
+        'Success',
+        'Email notification preferences saved successfully!',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    } catch (error) {
+      console.error('Error saving email settings:', error);
+      Alert.alert('Error', 'Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleToggleAll = (value: boolean) => {
     setAllEmails(value);
@@ -37,6 +100,17 @@ const EmailNotificationsScreen: React.FC<EmailNotificationsScreenProps> = ({ nav
       setSurveys(false);
     }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#000000" />
+          <Text style={styles.loadingText}>Loading settings...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -222,8 +296,20 @@ const EmailNotificationsScreen: React.FC<EmailNotificationsScreenProps> = ({ nav
         </View>
 
         {/* Save Button */}
-        <TouchableOpacity style={styles.saveButton} activeOpacity={0.8}>
-          <Text style={styles.saveButtonText}>Save Settings</Text>
+        <TouchableOpacity 
+          style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
+          activeOpacity={0.8}
+          onPress={saveSettings}
+          disabled={saving}
+        >
+          {saving ? (
+            <>
+              <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 10 }} />
+              <Text style={styles.saveButtonText}>Saving...</Text>
+            </>
+          ) : (
+            <Text style={styles.saveButtonText}>Save Settings</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -311,6 +397,8 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     paddingVertical: 16,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
     marginTop: 10,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
@@ -318,10 +406,23 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
   saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#666666',
   },
 });
 

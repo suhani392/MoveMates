@@ -7,6 +7,8 @@ import {
   ScrollView,
   SafeAreaView,
   Alert,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -24,6 +26,7 @@ const RoleChangeScreen: React.FC<RoleChangeScreenProps> = ({ navigation }) => {
   const { t } = useLanguage();
   const [selectedRole, setSelectedRole] = useState(userData?.role || 'wanderer');
   const [loading, setLoading] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const handleRoleChange = async () => {
     if (!userData?.uid) return;
@@ -35,39 +38,7 @@ const RoleChangeScreen: React.FC<RoleChangeScreenProps> = ({ navigation }) => {
 
     // If changing from wanderer to walker, send request to admin
     if (userData.role === 'wanderer' && selectedRole === 'walker') {
-      Alert.alert(
-        t('roleChangeRequest'),
-        t('roleChangeDesc'),
-        [
-          { text: t('cancel'), style: 'cancel' },
-          {
-            text: t('requestRoleChange'),
-            onPress: async () => {
-              setLoading(true);
-              try {
-                // Create role change request
-                await addDoc(collection(db, 'role_change_requests'), {
-                  userId: userData.uid,
-                  userName: userData.name,
-                  userEmail: userData.email,
-                  currentRole: 'wanderer',
-                  requestedRole: 'walker',
-                  status: 'pending',
-                  requestedAt: serverTimestamp(),
-                });
-
-                Alert.alert(t('success'), t('requestSent'));
-                navigation.goBack();
-              } catch (error) {
-                console.error('Error sending request:', error);
-                Alert.alert(t('error'), 'Failed to send request');
-              } finally {
-                setLoading(false);
-              }
-            },
-          },
-        ]
-      );
+      setShowConfirmModal(true);
     } else {
       // For other role changes, update directly
       Alert.alert(
@@ -99,6 +70,33 @@ const RoleChangeScreen: React.FC<RoleChangeScreenProps> = ({ navigation }) => {
     }
   };
 
+  const handleConfirmRoleChange = async () => {
+    if (!userData?.uid) return;
+    
+    setShowConfirmModal(false);
+    setLoading(true);
+    try {
+      // Create role change request
+      await addDoc(collection(db, 'role_change_requests'), {
+        userId: userData.uid,
+        userName: userData.name,
+        userEmail: userData.email,
+        currentRole: 'wanderer',
+        requestedRole: 'walker',
+        status: 'pending',
+        requestedAt: serverTimestamp(),
+      });
+
+      Alert.alert(t('success'), t('requestSent'));
+      navigation.goBack();
+    } catch (error) {
+      console.error('Error sending request:', error);
+      Alert.alert(t('error'), 'Failed to send request');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
@@ -118,10 +116,13 @@ const RoleChangeScreen: React.FC<RoleChangeScreenProps> = ({ navigation }) => {
           </Text>
         </View>
 
-        {/* Description */}
-        <Text style={styles.description}>
-          Select the role you want to switch to. Note that changing to Walker requires admin approval.
-        </Text>
+        {/* Info Card */}
+        <View style={styles.infoCard}>
+          <MaterialIcons name="info" size={24} color="#3B82F6" />
+          <Text style={styles.infoText}>
+            Select the role you want to switch to. Note that changing to Walker requires admin approval.
+          </Text>
+        </View>
 
         {/* Role Options */}
         <View style={styles.roleOptions}>
@@ -146,7 +147,7 @@ const RoleChangeScreen: React.FC<RoleChangeScreenProps> = ({ navigation }) => {
               </Text>
             </View>
             {selectedRole === 'wanderer' && (
-              <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
+              <MaterialIcons name="check-circle" size={24} color="#22C55E" />
             )}
           </TouchableOpacity>
 
@@ -172,7 +173,7 @@ const RoleChangeScreen: React.FC<RoleChangeScreenProps> = ({ navigation }) => {
               <Text style={styles.approvalNote}>Requires admin approval</Text>
             </View>
             {selectedRole === 'walker' && (
-              <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
+              <MaterialIcons name="check-circle" size={24} color="#22C55E" />
             )}
           </TouchableOpacity>
         </View>
@@ -195,12 +196,53 @@ const RoleChangeScreen: React.FC<RoleChangeScreenProps> = ({ navigation }) => {
             disabled={loading}
             activeOpacity={0.8}
           >
-            <Text style={styles.changeButtonText}>
-              {loading ? 'Changing Role...' : 'Change Role'}
-            </Text>
+            {loading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.changeButtonText}>Change Role</Text>
+            )}
           </TouchableOpacity>
         )}
       </ScrollView>
+
+      {/* Custom Confirmation Modal */}
+      <Modal
+        visible={showConfirmModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconContainer}>
+              <MaterialIcons name="info" size={48} color="#3B82F6" />
+            </View>
+            
+            <Text style={styles.modalTitle}>{t('roleChangeRequest')}</Text>
+            <Text style={styles.modalMessage}>
+              Your request to become a Walker will be sent to the admin for approval. You will be notified once your request is reviewed.
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowConfirmModal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalCancelText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalConfirmButton}
+                onPress={handleConfirmRoleChange}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalConfirmText}>{t('requestRoleChange')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -233,10 +275,15 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   currentRoleCard: {
-    backgroundColor: '#F7EDD9',
+    backgroundColor: '#F5F5F5',
     borderRadius: 15,
     padding: 20,
-    marginBottom: 20,
+    marginBottom: 25,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   currentRoleLabel: {
     fontSize: 14,
@@ -248,11 +295,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#000000',
   },
-  description: {
-    fontSize: 14,
-    color: '#666666',
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E0F2FE',
+    padding: 15,
+    borderRadius: 12,
     marginBottom: 25,
-    lineHeight: 20,
+  },
+  infoText: {
+    fontSize: 13,
+    color: '#0369A1',
+    marginLeft: 12,
+    flex: 1,
+    lineHeight: 18,
   },
   roleOptions: {
     marginBottom: 30,
@@ -265,15 +321,23 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     borderWidth: 2,
     borderColor: 'transparent',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
   wandererCard: {
-    backgroundColor: '#F3E8FF',
+    backgroundColor: '#D9DFF7',
   },
   walkerCard: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: '#E8F6E9',
   },
   selectedCard: {
-    borderColor: '#4CAF50',
+    borderColor: '#22C55E',
+    shadowColor: '#22C55E',
+    shadowOpacity: 0.2,
+    elevation: 4,
   },
   roleIconContainer: {
     marginRight: 15,
@@ -294,7 +358,7 @@ const styles = StyleSheet.create({
   },
   approvalNote: {
     fontSize: 12,
-    color: '#FF9800',
+    color: '#3B82F6',
     fontStyle: 'italic',
     marginTop: 5,
   },
@@ -305,18 +369,22 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 12,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#FFE0B2',
   },
   adminNoticeText: {
     fontSize: 14,
-    color: '#FF9800',
+    color: '#E65100',
     marginLeft: 10,
     flex: 1,
+    fontWeight: '500',
   },
   changeButton: {
     backgroundColor: '#000000',
     borderRadius: 25,
     paddingVertical: 16,
     alignItems: 'center',
+    marginTop: 10,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -325,10 +393,81 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: '#CCCCCC',
+    opacity: 0.6,
   },
   changeButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 30,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalIconContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#000000',
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  modalMessage: {
+    fontSize: 15,
+    color: '#666666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 30,
+  },
+  modalButtons: {
+    flexDirection: 'column',
+    gap: 12,
+  },
+  modalCancelButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  modalConfirmButton: {
+    backgroundColor: '#000000',
+    borderRadius: 15,
+    paddingVertical: 16,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  modalConfirmText: {
+    fontSize: 16,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
 });
