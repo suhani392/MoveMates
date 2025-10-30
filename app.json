@@ -48,6 +48,10 @@
         "webClientId": "642952440569-r97i0vfni9pd3r3j2992l92l7m6936p1.apps.googleusercontent.com",
         "iosClientId": "",
         "androidClientId": "642952440569-j8pk0rs3ehd9250m4tmf44of85me06k9.apps.googleusercontent.com"
+      },
+      "ORS_API_KEY": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjllNzk5YmEwZWQxYjQ5YmNhZTBhNjZkY2YwYjc5MmI2IiwiaCI6Im11cm11cjY0In0=",
+      "eas": {
+        "projectId": "a5a767fa-7435-4f68-9b0f-db0ae0c2f7af"
       }
     }
   }
