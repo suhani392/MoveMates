@@ -93,8 +93,7 @@ const ProfileDetailsScreen: React.FC<ProfileDetailsScreenProps> = ({ navigation,
     setIsLoading(false);
 
     if (result.success) {
-      // Navigate directly to Login without showing alert
-      navigation.navigate('Login');
+      Alert.alert('Success', 'Account created! Please login.');
     } else {
       Alert.alert('Error', result.error);
     }

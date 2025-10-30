@@ -21,6 +21,7 @@ import ProfileDetailsScreen from './screens/ProfileDetailsScreen';
 import GetStartedScreen from './screens/GetStartedScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import HelpPolicyScreen from './screens/HelpPolicyScreen';
+import WalkerTestScreen from './screens/WalkerTestScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -50,6 +51,16 @@ export type RootStackParamList = {
       password: string;
     };
     selectedRole: 'walker' | 'wanderer';
+  };
+  WalkerTest: {
+    userData: {
+      firstName: string;
+      lastName: string;
+      phoneNumber: string;
+      email: string;
+      password: string;
+    };
+    selectedRole: 'walker';
   };
   GetStarted: undefined;
   AuthNavigator: undefined;
@@ -109,6 +120,7 @@ function AppNavigator() {
             <Stack.Screen name="Permissions" component={PermissionsScreen} />
             <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
             <Stack.Screen name="ProfileDetails" component={ProfileDetailsScreen} />
+            <Stack.Screen name="WalkerTest" component={WalkerTestScreen} />
             <Stack.Screen name="GetStarted" component={GetStartedScreen} />
           </>
         ) : (

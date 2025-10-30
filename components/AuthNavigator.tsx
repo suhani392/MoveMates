@@ -56,6 +56,10 @@ import SOSScreen from '../screens/SOSScreen';
 import FamilyDashboardScreen from '../screens/FamilyDashboardScreen';
 import PaymentScreen from '../screens/PaymentScreen';
 import PaymentHelpScreen from '../screens/PaymentHelpScreen';
+import WalkerTestScreen from '../screens/WalkerTestScreen';
+import { doc, getDoc } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import { db } from '../firebaseConfig';
 
 const Stack = createStackNavigator();
 
@@ -63,6 +67,25 @@ const AuthNavigator: React.FC = () => {
   const { user, userData, loading } = useAuth();
   const [permsReady, setPermsReady] = React.useState(false);
   const [needsPermissions, setNeedsPermissions] = React.useState(false);
+  const [mustTakeTest, setMustTakeTest] = useState(false);
+  const [testedLoaded, setTestedLoaded] = useState(false);
+
+  // Custom walker quiz logic
+  useEffect(() => {
+    if (!user || !userData || loading) return;
+    const checkTest = async () => {
+      if (userData.role === 'walker' && !userData.approved) {
+        // See if userTests/{uid} exists (submitted the quiz)
+        const snap = await getDoc(doc(db, 'userTests', user.uid));
+        setMustTakeTest(!snap.exists());
+        setTestedLoaded(true);
+      } else {
+        setMustTakeTest(false);
+        setTestedLoaded(true);
+      }
+    };
+    checkTest();
+  }, [user, userData, loading]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -85,7 +108,7 @@ const AuthNavigator: React.FC = () => {
     };
   }, []);
 
-  if (loading || !permsReady) {
+  if (loading || !permsReady || (userData && userData.role === 'walker' && !userData.approved && !testedLoaded)) {
     return (
       <View style={styles.loadingContainer}>
         <Text>Loading...</Text>
@@ -94,23 +117,27 @@ const AuthNavigator: React.FC = () => {
   }
 
   if (!user || !userData) {
-    // User not authenticated, show login screen
-    return null; // This will be handled by your main navigation
+    // User not authenticated
+    return null;
   }
 
-  // If user is removed, hard-route to the RemovedUser screen always
   if ((userData as any).status === 'removed') {
     return (
-      <Stack.Navigator
-        initialRouteName="RemovedUser"
-        screenOptions={{ headerShown: false }}
-      >
+      <Stack.Navigator initialRouteName="RemovedUser" screenOptions={{ headerShown: false }}>
         <Stack.Screen name="RemovedUser" component={RemovedUserScreen} />
       </Stack.Navigator>
     );
   }
 
-  // Determine initial route based on role and approval status
+  // Core: force walker test if needed before approval
+  if (userData.role === 'walker' && !userData.approved && mustTakeTest) {
+    return (
+      <Stack.Navigator initialRouteName="WalkerTest" screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="WalkerTest" component={WalkerTestScreen} />
+      </Stack.Navigator>
+    );
+  }
+
   let initialRouteName = 'Home';
   if (userData.role === 'admin') {
     initialRouteName = 'AdminDashboard';
@@ -123,9 +150,7 @@ const AuthNavigator: React.FC = () => {
   return (
     <Stack.Navigator
       initialRouteName={needsPermissions ? 'Permissions' : initialRouteName}
-      screenOptions={{
-        headerShown: false,
-      }}
+      screenOptions={{ headerShown: false }}
     >
       <Stack.Screen
         name="Permissions"
@@ -185,6 +210,7 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="FamilyDashboard" component={FamilyDashboardScreen} />
       <Stack.Screen name="Payment" component={PaymentScreen} />
       <Stack.Screen name="PaymentHelp" component={PaymentHelpScreen} />
+      <Stack.Screen name="WalkerTest" component={WalkerTestScreen} />
     </Stack.Navigator>
   );
 };

@@ -65,6 +65,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
   const [lastTappedUserId, setLastTappedUserId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [dailyActiveUsers, setDailyActiveUsers] = useState<{ date: string; count: number }[]>([]);
+  const [quizResult, setQuizResult] = useState<any>(null); // New state for quiz result
+  const [resultModal, setResultModal] = useState<{ visible: boolean; userId: string }>({ visible: false, userId: '' }); // New state for quiz result modal
+  const [rejectReason, setRejectReason] = useState(''); // New state for rejection reason
 
   useEffect(() => {
     fetchUsers();
@@ -804,6 +807,54 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Quiz Result Modal */}
+      {quizResult && (
+        <Modal
+          visible={resultModal.visible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setResultModal({ visible: false, userId: '' })}
+        >
+          <View style={styles.overlay}>
+            <View style={styles.removalCard}>
+              <ScrollView style={{ maxHeight: 470 }}>
+                <Text style={[styles.resultTitle, {marginBottom:8}]}>Quiz Result</Text>
+                <Text style={styles.resultScore}>Trust Index: <Text style={{fontWeight:'bold', color: quizResult.score >= 70 ? '#4CAF50' : '#CA2323'}}>{quizResult.score}/100</Text></Text>
+                {quizResult?.traitScores && (
+                  <View style={{marginBottom:18}}>
+                    {Object.entries(quizResult.traitScores).map(([trait, val]) => (
+                      <Text key={trait} style={styles.resultTrait}>{trait}: {Number(val).toFixed(2)}</Text>
+                    ))}
+                  </View>
+                )}
+                <Text style={styles.resultSub}>Answers:</Text>
+                {quizResult.answers && Object.entries(quizResult.answers).map(([key, val], idx) => (
+                  <Text key={key} style={styles.resultA}>{idx+1}. <Text style={{color:'#333',fontWeight:'700'}}>{val}</Text></Text>
+                ))}
+                <View style={{marginVertical:18, flexDirection:'row', justifyContent:'space-between'}}>
+                  <TouchableOpacity style={[styles.quizActionBtn, {backgroundColor:'#4CAF50'}]} onPress={() => handleQuizApproveReject(resultModal.userId,true)}>
+                    <Text style={{color:'#FFF', fontWeight:'700', fontSize:16}}>Pass</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.quizActionBtn, {backgroundColor:'#F44336'}]} onPress={() => handleQuizApproveReject(resultModal.userId,false)}>
+                    <Text style={{color:'#FFF', fontWeight:'700', fontSize:16}}>Not Pass</Text>
+                  </TouchableOpacity>
+                </View>
+                {!quizResult.score || quizResult.score < 60 ? (
+                  <TextInput
+                    style={styles.resultRejReason}
+                    placeholder="Rejection Reason (optional)"
+                    placeholderTextColor="#AAA"
+                    value={rejectReason}
+                    onChangeText={setRejectReason}
+                    multiline
+                  />
+                ) : null}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };
@@ -1234,6 +1285,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
+  // Quiz Result Modal Styles
+  resultTitle: { fontSize:18, fontWeight:'bold', marginTop:2, color:'#381' },
+  resultScore: { fontSize:22, fontWeight:'800', marginVertical:7, color:'#212' },
+  resultTrait: { color:'#612', fontWeight:'bold', marginBottom:2, fontSize:15 },
+  resultSub: { fontWeight:'800', marginTop:7, marginBottom:3, color:'#111', fontSize:15 },
+  resultA: { fontSize:15, color:'#434', marginBottom:5, fontWeight:'600' },
+  quizActionBtn: { flex:1, marginHorizontal:5, paddingVertical:13, borderRadius:8, alignItems:'center' },
+  resultRejReason: { borderColor:'#F44336', borderWidth:1, borderRadius:8, marginTop:9, minHeight:30, padding:8, color:'#B00020', fontWeight:'600', backgroundColor:'#FFFDEE' },
 });
 
 export default AdminDashboard;
