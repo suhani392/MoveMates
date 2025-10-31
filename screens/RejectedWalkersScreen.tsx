@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl, SafeAreaView } from 'react-native';
 import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
 import { MaterialIcons } from '@expo/vector-icons';
 import { db } from '../firebaseConfig';
@@ -16,7 +16,7 @@ interface User {
   createdAt: any;
 }
 
-const RejectedWalkersScreen: React.FC = () => {
+const RejectedWalkersScreen: React.FC<any> = ({ navigation }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -83,42 +83,51 @@ const RejectedWalkersScreen: React.FC = () => {
   }
 
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <Text style={styles.title}>Rejected Walkers</Text>
-      
-      {users.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <MaterialIcons name="person-off" size={48} color="#999" />
-          <Text style={styles.emptyText}>No rejected walkers found</Text>
-        </View>
-      ) : (
-        users.map(user => (
-          <View key={user.id} style={styles.userCard}>
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{user.name || 'Unnamed User'}</Text>
-              <Text style={styles.userEmail}>{user.email}</Text>
-              {user.rejectionReason && (
-                <Text style={styles.rejectionReason}>
-                  <Text style={styles.bold}>Reason: </Text>
-                  {user.rejectionReason}
-                </Text>
-              )}
-            </View>
-            <TouchableOpacity 
-              style={styles.reinstateButton}
-              onPress={() => handleReinstate(user.id)}
-            >
-              <Text style={styles.reinstateButtonText}>Reinstate</Text>
-            </TouchableOpacity>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF', paddingTop: 32 }}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <MaterialIcons name="arrow-back" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Rejected Walkers</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView 
+        style={styles.container}
+        contentContainerStyle={{ padding: 16 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {users.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <MaterialIcons name="person-off" size={48} color="#999" />
+            <Text style={styles.emptyText}>No rejected walkers found</Text>
           </View>
-        ))
-      )}
-    </ScrollView>
+        ) : (
+          users.map(user => (
+            <View key={user.id} style={styles.userCard}>
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>{user.name || 'Unnamed User'}</Text>
+                <Text style={styles.userEmail}>{user.email}</Text>
+                {user.rejectionReason && (
+                  <Text style={styles.rejectionReason}>
+                    <Text style={styles.bold}>Reason: </Text>
+                    {user.rejectionReason}
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity 
+                style={styles.reinstateButton}
+                onPress={() => handleReinstate(user.id)}
+              >
+                <Text style={styles.reinstateButtonText}>Reinstate</Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -126,7 +135,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-    padding: 16,
+  },
+  header: {
+    height: 56,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
   },
   title: {
     fontSize: 24,

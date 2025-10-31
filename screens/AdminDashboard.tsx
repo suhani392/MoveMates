@@ -30,6 +30,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const { userData } = useAuth();
+  const getGreetingText = (): string => {
+    const hour = new Date().getHours();
+    let g = 'Good Morning';
+    if (hour >= 12 && hour < 17) g = 'Good Afternoon';
+    else if (hour >= 17 || hour < 4) g = 'Good Evening';
+    const name = (userData?.name || 'Admin').toString();
+    return `${g}, ${name}`;
+  };
 
   // Listen for unread notifications
   useEffect(() => {
@@ -70,6 +78,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
   const [quizResult, setQuizResult] = useState<any>(null); // New state for quiz result
   const [resultModal, setResultModal] = useState<{ visible: boolean; userId: string }>({ visible: false, userId: '' }); // New state for quiz result modal
   const [rejectReason, setRejectReason] = useState(''); // New state for rejection reason
+  const [successModal, setSuccessModal] = useState<{ visible: boolean; title: string; message: string }>({ visible: false, title: '', message: '' });
 
   useEffect(() => {
     fetchUsers();
@@ -88,10 +97,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
   const fetchUsers = async () => {
     try {
       const usersSnapshot = await getDocs(collection(db, 'users'));
-      const usersList = usersSnapshot.docs.map(doc => {
-        const data = doc.data();
+      const usersList = usersSnapshot.docs.map(docSnap => {
+        const data = docSnap.data();
         return {
-          id: doc.id,
+          // Spread raw data first
+          ...(data as any),
+          // Then ensure core fields are present and normalized
+          id: docSnap.id,
           name: data.name || '',
           email: data.email || '',
           role: data.role || 'wanderer',
@@ -99,18 +111,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
           rejected: data.rejected || false,
           rejectionReason: data.rejectionReason || '',
           createdAt: data.createdAt || null,
-          // Include all user data to ensure profile photos are available
-          ...data,
-          // Ensure these fields are not overridden by spread
-          id: doc.id,
-          name: data.name || '',
-          email: data.email || '',
-          role: data.role || 'wanderer',
-          approved: data.approved || false,
-          rejected: data.rejected || false,
-          rejectionReason: data.rejectionReason || '',
-          createdAt: data.createdAt || null
-        } as User & { [key: string]: any }; // Allow additional properties
+        } as User & { [key: string]: any };
       });
       
       // Filter out rejected walkers from the main list
@@ -420,17 +421,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
         <Text>Loading users...</Text>
       </SafeAreaView>
     );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={toggleDrawer}>
-          <MaterialIcons name="menu" size={28} color="#000" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle as any}>Admin Dashboard</Text>
-        <View style={{ width: 28 }} />
-      </View>
-
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerButton} onPress={openDrawer}>
@@ -456,6 +450,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
           />
         }
       >
+        {/* Greeting */}
+        <Text style={styles.greeting}>{getGreetingText()}</Text>
+        <Text style={styles.greetingSub}>Welcome back to MoveMates</Text>
+
         {/* Analytics Graph */}
         <View style={styles.analyticsSection}>
           <Text style={styles.analyticsSectionTitle}>Daily Active Users</Text>
@@ -840,16 +838,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
                 style={styles.drawerItem} 
                 onPress={() => { 
                   closeDrawer();
-                  navigation.navigate('Notifications');
-                }}
-              >
-                <Text style={styles.drawerText}>Notifications</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.drawerItem} 
-                onPress={() => { 
-                  closeDrawer();
                   navigation.navigate('RemovedUsers');
                 }}
               >
@@ -935,20 +923,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
               >
                 <Text style={styles.drawerText}>About</Text>
               </TouchableOpacity>
-            </ScrollView>
 
-            {/* Fixed Logout Button */}
-            <View style={styles.logoutContainer as any}>
+              {/* Logout inside scroll to avoid sticking to bottom */}
               <TouchableOpacity 
-                style={styles.logoutButton as any} 
+                style={[styles.drawerItem, { marginTop: 8 }]} 
                 onPress={() => { 
                   closeDrawer();
                   setTimeout(() => handleSignOut(), 300);
                 }}
               >
-                <Text style={styles.logoutText}>Logout</Text>
+                <Text style={[styles.drawerText, { color: '#FF4D4F', fontWeight: '700' }]}>Logout</Text>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -962,11 +948,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
       >
         <View style={styles.removalOverlay}>
           <View style={styles.removalCard}>
-            <Text style={styles.removalTitle}>Remove this user?</Text>
+            <View style={styles.removalHeader}>
+              <View style={styles.removalIconCircle}>
+                <MaterialIcons name="warning" size={22} color="#D32F2F" />
+              </View>
+              <Text style={styles.removalTitle}>Remove this user?</Text>
+            </View>
+            <Text style={styles.removalSubtitle}>This will mark the user as removed. You can reinstate later.</Text>
             <TextInput
               style={styles.removalInput}
               placeholder="Write the removal reason…"
-              placeholderTextColor="#333"
+              placeholderTextColor="#999"
               value={removalReason}
               onChangeText={setRemovalReason}
               multiline
@@ -985,7 +977,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
                       removedReason: removalReason || 'No reason specified',
                       removedAt: serverTimestamp(),
                       removedBy: (auth.currentUser && auth.currentUser.uid) || 'admin',
-                      // Ensure these fields are properly set if this is a rejection
                       approved: false,
                       rejected: true,
                       rejectionReason: removalReason || 'No reason specified',
@@ -1007,13 +998,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
                     setSelectedUserForRemoval(null);
                     setRemovalReason('');
                     fetchUsers();
-                    Alert.alert('Removed', 'User has been marked as removed');
+                    setSuccessModal({ visible: true, title: 'Removed', message: 'User has been marked as removed' });
                   } catch (e) {
                     Alert.alert('Error', 'Failed to remove user');
                   }
                 }}
               >
                 <Text style={styles.removalConfirmText}>Remove user</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success Modal */}
+      <Modal
+        visible={successModal.visible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setSuccessModal({ visible: false, title: '', message: '' })}
+      >
+        <View style={styles.removalOverlay}>
+          <View style={styles.successCard}>
+            <View style={styles.successHeader}>
+              <View style={styles.successIconCircle}>
+                <MaterialIcons name="check-circle" size={24} color="#2E7D32" />
+              </View>
+              <Text style={styles.successTitle}>{successModal.title || 'Success'}</Text>
+            </View>
+            <Text style={styles.successMessage}>{successModal.message || 'Action completed successfully.'}</Text>
+            <View style={{ alignItems: 'flex-end', marginTop: 14 }}>
+              <TouchableOpacity style={styles.successButton} onPress={() => setSuccessModal({ visible: false, title: '', message: '' })}>
+                <Text style={styles.successButtonText}>OK</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1042,7 +1058,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ navigation }) => {
                 )}
                 <Text style={styles.resultSub}>Answers:</Text>
                 {quizResult.answers && Object.entries(quizResult.answers).map(([key, val], idx) => (
-                  <Text key={key} style={styles.resultA}>{idx+1}. <Text style={{color:'#333',fontWeight:'700'}}>{val}</Text></Text>
+                  <Text key={key} style={styles.resultA}>{idx+1}. <Text style={{color:'#333',fontWeight:'700'}}>{String(val)}</Text></Text>
                 ))}
                 <View style={{marginVertical:18, flexDirection:'row', justifyContent:'space-between'}}>
                   <TouchableOpacity style={[styles.quizActionBtn, {backgroundColor:'#4CAF50'}]} onPress={() => handleQuizApproveReject(resultModal.userId,true)}>
@@ -1087,7 +1103,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 15,
+    paddingTop: 45,
     paddingBottom: 10,
     zIndex: 10,
   },
@@ -1119,6 +1135,18 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 15,
     color: '#000000',
+  },
+  greeting: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#000000',
+    marginTop: 16,
+    marginBottom: 6,
+  },
+  greetingSub: {
+    fontSize: 13,
+    color: '#444444',
+    marginBottom: 10,
   },
   searchRow: {
     flexDirection: 'row',
@@ -1223,8 +1251,6 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   avatarImg: {
-    width: 50,
-    height: 50,
     borderRadius: 25,
     backgroundColor: '#f0f0f0',
     width: '100%',
@@ -1284,8 +1310,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   moreDetails: {
-    color: '#1E88E5',
-    fontWeight: '700',
+    color: '#4285F4',
+    fontWeight: '600',
+    fontSize: 12,
   },
   cardFooter: {
     flexDirection: 'row',
@@ -1297,28 +1324,9 @@ const styles = StyleSheet.create({
   viewResultsButton: {
     paddingVertical: 4,
     paddingHorizontal: 8,
-    backgroundColor: '#4CAF50',
-    borderRadius: 4,
   },
   viewResultsText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  viewResultsButton: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    backgroundColor: '#4CAF50',
-    borderRadius: 4,
-  },
-  viewResultsText: {
-    color: '#FFFFFF',
+    color: '#4285F4',
     fontWeight: '600',
     fontSize: 12,
   },
@@ -1464,17 +1472,32 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   drawerItem: {
-    marginBottom: 35,
+    marginBottom: 12,
   },
   drawerText: {
     fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '500',
   },
+  drawerScrollView: {
+  },
+  drawerContentContainer: {
+    paddingBottom: 10,
+  },
+  logoutContainer: {
+    paddingTop: 8,
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.15)'
+  },
+  logoutButton: {
+    paddingVertical: 10,
+  },
   logoutItem: {
     position: 'absolute',
-    bottom: 50,
+    bottom: 80,
     left: 30,
+    paddingBottom: 20,
   },
   logoutText: {
     fontSize: 16,
@@ -1490,24 +1513,48 @@ const styles = StyleSheet.create({
   },
   removalCard: {
     width: '100%',
-    borderRadius: 12,
-    backgroundColor: '#E98181',
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
     padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   removalTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#000000',
+    fontWeight: '800',
+    color: '#111',
+    marginLeft: 10,
+  },
+  removalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  removalIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FFE5E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removalSubtitle: {
+    color: '#666',
     marginBottom: 12,
   },
   removalInput: {
-    minHeight: 100,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    minHeight: 90,
+    borderRadius: 10,
+    backgroundColor: '#F8F9FA',
     padding: 12,
     color: '#000000',
     textAlignVertical: 'top',
     marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   removalActions: {
     flexDirection: 'row',
@@ -1516,23 +1563,69 @@ const styles = StyleSheet.create({
   },
   removalCancel: {
     paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   removalCancelText: {
-    color: '#000000',
-    fontWeight: '600',
+    color: '#111827',
+    fontWeight: '700',
   },
   removalConfirm: {
     paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: '#000000',
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: '#D32F2F',
   },
   removalConfirmText: {
     color: '#FFFFFF',
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  // Success Modal styles
+  successCard: {
+    width: '100%',
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  successHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  successIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#E8F5E9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111',
+    marginLeft: 10,
+  },
+  successMessage: {
+    color: '#444',
+  },
+  successButton: {
+    backgroundColor: '#2E7D32',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  successButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
   },
   // Quiz Result Modal Styles
   resultTitle: { fontSize:18, fontWeight:'bold', marginTop:2, color:'#381' },

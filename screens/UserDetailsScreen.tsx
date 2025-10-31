@@ -107,27 +107,72 @@ const UserDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const buildDocuments = (): Array<{ label: string; url?: string }> => {
     const docs: Array<{ label: string; url?: string }> = [];
     const d = user?.documents;
-    if (!d) return docs;
-    if (!Array.isArray(d) && typeof d === 'object') {
-      if (d.aadhaar) docs.push({ label: 'Aadhaar card', url: d.aadhaar });
-      if (d.pan) docs.push({ label: 'PAN card', url: d.pan });
-      if (d.addressProof) docs.push({ label: 'Address proof', url: d.addressProof });
+
+    // 1) Known structured 'documents' object formats
+    if (d && !Array.isArray(d) && typeof d === 'object') {
+      const knownKeys = [
+        ['aadhaar', 'Aadhaar card'],
+        ['aadhar', 'Aadhaar card'],
+        ['pan', 'PAN card'],
+        ['panCard', 'PAN card'],
+        ['addressProof', 'Address proof'],
+        ['idProof', 'ID proof'],
+        ['policeVerification', 'Police verification'],
+        ['bankPassbook', 'Bank passbook'],
+        ['drivingLicense', 'Driving license'],
+        ['educationCert', 'Education certificate'],
+      ] as Array<[string, string]>;
+      knownKeys.forEach(([key, label]) => {
+        const v = d?.[key];
+        if (typeof v === 'string' && v.length > 0) docs.push({ label, url: v });
+      });
       if (Array.isArray(d.other)) {
         d.other.forEach((u: any, idx: number) => {
           if (typeof u === 'string') docs.push({ label: `Other document ${idx + 1}`, url: u });
           else if (u && typeof u === 'object') docs.push({ label: u.name || `Other document ${idx + 1}`, url: u.url || u.link });
         });
       }
-      return docs;
     }
+
+    // 2) If 'documents' is an array of strings or objects
     if (Array.isArray(d) && d.every((x: any) => typeof x === 'string')) {
       d.forEach((name: string, idx: number) => docs.push({ label: name }));
-      return docs;
-    }
-    if (Array.isArray(d) && d.every((x: any) => typeof x === 'object')) {
+    } else if (Array.isArray(d) && d.every((x: any) => typeof x === 'object')) {
       d.forEach((item: any, idx: number) => docs.push({ label: item.name || `Document ${idx + 1}`, url: item.url || item.link }));
-      return docs;
     }
+
+    // 3) Fallback: scan entire user object for URL-like fields
+    try {
+      const urlLike = (val: any) => typeof val === 'string' && (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('gs://'));
+      const ignoreKeys = new Set([
+        'profileImage','profileImageUrl','image','photoURL','photoUrl','avatar','avatarUrl','profilePic','profile_picture','profile_photo_url','imageUrl','picture','pic',
+      ]);
+      Object.keys(user || {}).forEach((key) => {
+        if (ignoreKeys.has(key)) return;
+        const val = (user as any)[key];
+        if (urlLike(val) && !docs.some(d0 => d0.url === val)) {
+          const pretty = key.replace(/([A-Z])/g, ' $1').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+          const label = pretty.charAt(0).toUpperCase() + pretty.slice(1);
+          docs.push({ label, url: val });
+        } else if (Array.isArray(val)) {
+          val.forEach((v, idx) => {
+            if (urlLike(v) && !docs.some(d0 => d0.url === v)) {
+              docs.push({ label: `${key} ${idx + 1}`, url: v });
+            }
+          });
+        } else if (val && typeof val === 'object') {
+          Object.keys(val).forEach((k2) => {
+            const nested = val[k2];
+            if (urlLike(nested) && !docs.some(d0 => d0.url === nested)) {
+              const pretty = `${key} ${k2}`.replace(/([A-Z])/g, ' $1').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+              const label = pretty.charAt(0).toUpperCase() + pretty.slice(1);
+              docs.push({ label, url: nested });
+            }
+          });
+        }
+      });
+    } catch {}
+
     return docs;
   };
 
@@ -206,7 +251,7 @@ const UserDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
                       <Text style={styles.docLabel}>{d.label}</Text>
                       <View style={styles.docActions}>
                         {d.url ? (
-                          <TouchableOpacity onPress={() => openUrl(d.url)}><Text style={styles.docLink}>View/Download</Text></TouchableOpacity>
+                          <TouchableOpacity onPress={() => openUrl(d.url)}><Text style={styles.docLink}>View file</Text></TouchableOpacity>
                         ) : (
                           <Text style={[styles.docLink, { color: '#999' }]}>No file</Text>
                         )}
@@ -225,7 +270,7 @@ const UserDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { height: 56, backgroundColor: 'rgba(0,0,0,0.8)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 20 },
+  header: { height: 90, backgroundColor: 'rgba(0,0,0,0.8)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 35 },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   content: { padding: 16 },

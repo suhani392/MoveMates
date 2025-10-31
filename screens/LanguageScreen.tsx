@@ -91,6 +91,12 @@ const LanguageScreen: React.FC<LanguageScreenProps> = ({ navigation }) => {
           ))}
         </View>
 
+        {/* Info Banner */}
+        <View style={styles.infoBanner}>
+          <MaterialIcons name="info" size={18} color="#0B5ED7" style={{ marginRight: 8 }} />
+          <Text style={styles.infoBannerText}>Language changes are coming soon. Thank you for your understanding.</Text>
+        </View>
+
         {/* Save Button */}
         <TouchableOpacity style={styles.saveButton} activeOpacity={0.8} onPress={handleSave}>
           <Text style={styles.saveButtonText}>{t('save')}</Text>
@@ -179,6 +185,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#E7F1FF',
+    borderWidth: 1,
+    borderColor: '#CFE2FF',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  infoBannerText: {
+    color: '#0B5ED7',
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
   },
 });
 

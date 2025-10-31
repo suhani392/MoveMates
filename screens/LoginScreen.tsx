@@ -91,6 +91,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
+        <View style={styles.separator} />
         <View style={styles.signupContainer}>
           <Text style={styles.signupText}>Don't have an account?</Text>
           <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
@@ -188,6 +189,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#000000',
     fontWeight: '500',
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#000000',
+    marginTop: 20,
+    marginBottom: 20,
   },
   signupContainer: {
     alignItems: 'center',
