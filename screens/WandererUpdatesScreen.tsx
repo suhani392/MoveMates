@@ -316,7 +316,7 @@ const WandererUpdatesScreen: React.FC<WandererUpdatesScreenProps> = ({ navigatio
       if (status !== 'granted') {
         Alert.alert(
           'Location Permission Required',
-          'Please enable location access to start the walk. We need to verify you are at the pickup location.',
+          'Please enable location access to start the walk.',
           [{ text: 'OK' }]
         );
         setCheckingLocation(false);
@@ -329,72 +329,8 @@ const WandererUpdatesScreen: React.FC<WandererUpdatesScreenProps> = ({ navigatio
       });
 
       console.log('Walker location:', location.coords);
-      console.log('Pickup location:', request.pickup);
-
-      // Geocode the pickup address to get coordinates
-      try {
-        const geocodedLocation = await Location.geocodeAsync(request.pickup);
-        
-        if (geocodedLocation && geocodedLocation.length > 0) {
-          const pickupCoords = geocodedLocation[0];
-          const distance = calculateDistance(
-            location.coords.latitude,
-            location.coords.longitude,
-            pickupCoords.latitude,
-            pickupCoords.longitude
-          );
-
-          console.log('Distance to pickup:', distance, 'meters');
-
-          // Check if walker is within 500 meters of pickup location
-          const REQUIRED_DISTANCE = 500; // meters
-          
-          if (distance > REQUIRED_DISTANCE) {
-            Alert.alert(
-              'Too Far from Pickup Location',
-              `You are ${Math.round(distance)} meters away from the pickup location. Please move closer (within ${REQUIRED_DISTANCE}m) to start the walk.\n\nPickup: ${request.pickup}`,
-              [{ text: 'OK' }]
-            );
-            setCheckingLocation(false);
-            return;
-          }
-
-          // Walker is close enough, proceed
-          console.log('Walker is within range, allowing start');
-        } else {
-          // Could not geocode address, show warning but allow to proceed
-          Alert.alert(
-            'Location Verification',
-            'Could not verify pickup location. Please ensure you are at:\n\n' + request.pickup,
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => { setCheckingLocation(false); } },
-              { text: 'I am at pickup', onPress: () => {
-                setSelectedRequest(request);
-                setShowStartWalkModal(true);
-              }}
-            ]
-          );
-          setCheckingLocation(false);
-          return;
-        }
-      } catch (geocodeError) {
-        console.error('Geocoding error:', geocodeError);
-        // Geocoding failed, show warning but allow to proceed
-        Alert.alert(
-          'Location Verification',
-          'Could not verify pickup location. Please ensure you are at:\n\n' + request.pickup,
-          [
-            { text: 'Cancel', style: 'cancel', onPress: () => { setCheckingLocation(false); } },
-            { text: 'I am at pickup', onPress: () => {
-              setSelectedRequest(request);
-              setShowStartWalkModal(true);
-            }}
-          ]
-        );
-        setCheckingLocation(false);
-        return;
-      }
       
+      // Proceed directly to show the start walk modal
       setSelectedRequest(request);
       setShowStartWalkModal(true);
       
