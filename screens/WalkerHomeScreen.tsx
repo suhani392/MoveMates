@@ -23,6 +23,7 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
   const [todaysEarnings, setTodaysEarnings] = useState<number>(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const [totalEarnings, setTotalEarnings] = useState(0);
   const { userData } = useAuth();
   const { showToast } = useToast();
 
@@ -169,10 +170,6 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
         // Log all requests for debugging
         console.log('All requests for this walker:', allRequests);
         
-        // TEMPORARY: Show all requests regardless of status for debugging
-        // setIncomingRequests(allRequests);
-        // return;
-
         // Filter for pending requests
         const pendingRequests = allRequests.filter(request => {
           const isPending = request.status === 'pending';
@@ -186,6 +183,27 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
 
         console.log(`Found ${pendingRequests.length} pending requests`);
         setIncomingRequests(pendingRequests);
+
+        // Calculate today's walks and earnings
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const completedWalks = allRequests.filter(request => {
+          if (request.status !== 'completed') return false;
+          
+          // Check if the walk was completed today
+          const completedAt = request.completedAt?.toDate?.();
+          if (!completedAt) return false;
+          
+          return completedAt >= today;
+        });
+
+        // Update today's walks count
+        setTodaysWalks(completedWalks.length);
+        
+        // Calculate today's earnings (assuming each completed walk earns 100)
+        const earnings = completedWalks.length * 100; // Adjust the amount as needed
+        setTodaysEarnings(earnings);
       },
       (error) => {
         console.error('Error in walk requests listener:', error);
@@ -197,6 +215,49 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
       unsubscribe();
     };
   }, [userData?.uid]); // Re-run when user ID changes
+
+  // Fetch walker's total earnings
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    // Get today's date at 00:00:00
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const paymentsRef = collection(db, 'payments');
+    const paymentsQuery = query(
+      paymentsRef,
+      where('walkerId', '==', user.uid),
+      where('status', '==', 'paid')
+    );
+
+    const unsubscribe = onSnapshot(
+      paymentsQuery,
+      (snapshot) => {
+        let total = 0;
+        let todayWalks = 0;
+        
+        snapshot.forEach((doc) => {
+          const payment = doc.data();
+          // Only include payments that were made today
+          const paymentDate = payment.updatedAt?.toDate?.() || payment.createdAt?.toDate?.();
+          if (paymentDate >= today) {
+            total += payment.walkerEarnings || 0;
+            todayWalks++;
+          }
+        });
+
+        setTodaysEarnings(total);
+        setTodaysWalks(todayWalks);
+      },
+      (error) => {
+        console.error('Error fetching payments:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [userData?.uid]);
 
   // Add a button to manually refresh and debug requests
   const handleManualRefresh = async () => {
@@ -334,19 +395,14 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
               <Text style={styles.statNumber}>{todaysWalks}</Text>
               <Text style={styles.statLabel}>Today's Walks</Text>
             </View>
-            {/* Removed trend badge as it's not needed for today's stats */}
           </View>
           <View style={[styles.statCard, styles.purpleCard]}>
             <View style={styles.statIconContainer}>
               <MaterialIcons name="account-balance-wallet" size={28} color="#5B21B6" />
             </View>
             <View style={styles.statTextContainer}>
-              <Text style={styles.statNumber}>₹{todaysEarnings}</Text>
+              <Text style={styles.statNumber}>₹{todaysEarnings.toFixed(0)}</Text>
               <Text style={styles.statLabel}>Today's Earnings</Text>
-            </View>
-            <View style={styles.statTrendBadge}>
-              <Ionicons name="trending-up" size={12} color="#22C55E" />
-              <Text style={styles.statTrendText}>+8%</Text>
             </View>
           </View>
         </View>
@@ -390,20 +446,6 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
               activeOpacity={0.7}
             >
             <View style={styles.cardContent}>
-              {/* Profile Image */}
-              <View style={styles.profileImageContainer}>
-                {request.wandererImage ? (
-                  <Image 
-                    source={{ uri: request.wandererImage }} 
-                    style={styles.profileImageActual} 
-                  />
-                ) : (
-                  <View style={styles.profileImage}>
-                    <MaterialIcons name="person" size={24} color="#CCCCCC" />
-                  </View>
-                )}
-              </View>
-
               {/* Request Details */}
               <View style={styles.requestDetails}>
                   <Text style={styles.requestName}>{request.wandererName}</Text>

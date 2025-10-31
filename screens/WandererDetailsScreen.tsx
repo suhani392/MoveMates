@@ -147,19 +147,8 @@ const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: 
 
         {/* Wanderer Card */}
         <View style={styles.wandererCard}>
-          {/* Profile Image */}
-          <View style={styles.profileImageContainer}>
-            {wanderer.image ? (
-              <Image source={{ uri: wanderer.image }} style={styles.profileImage} />
-            ) : (
-              <View style={styles.profileImagePlaceholder}>
-                <MaterialIcons name="person" size={80} color="#CCCCCC" />
-              </View>
-            )}
-          </View>
-
           {/* Wanderer Name with Verified Badge */}
-          <View style={styles.nameContainer}>
+          <View style={[styles.nameContainer, { marginTop: 20 }]}>
             <Text style={styles.wandererName}>{wanderer.name}</Text>
             <View style={styles.verifiedBadge}>
               <MaterialIcons name="verified" size={18} color="#2196F3" />
