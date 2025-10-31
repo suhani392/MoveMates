@@ -5,7 +5,7 @@ import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { authService } from '../services/authService';
 import { auth, db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, updateDoc, doc, getDocs, DocumentData } from 'firebase/firestore';
 import { WalkRequestService, WalkRequest } from '../services/walkRequestService';
 import { useToast } from '../contexts/ToastContext';
 
@@ -45,17 +45,86 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
     return () => unsubscribe();
   }, []);
 
+  // Enhanced debugging function to check all requests
+  const debugWalkRequests = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        console.log('No authenticated user found for debug');
+        return;
+      }
+
+      console.log('=== DEBUGGING WALK REQUESTS ===');
+      console.log('Walker UID:', user.uid);
+      
+      // 1. Check all walk requests in the database
+      const allRequestsSnapshot = await getDocs(collection(db, 'walkRequests'));
+      console.log(`Total walk requests in database: ${allRequestsSnapshot.docs.length}`);
+      
+      // 2. Check requests specifically for this walker
+      const walkerRequests = allRequestsSnapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          _exists: true
+        }))
+        .filter((req: any) => req.walkerId === user.uid);
+      
+      console.log(`Found ${walkerRequests.length} requests for this walker`);
+      
+      // 3. Log details of each request
+      walkerRequests.forEach((req: any) => {
+        console.log(`\n--- Request ${req.id} ---`);
+        console.log('Status:', req.status);
+        console.log('Walker ID:', req.walkerId);
+        console.log('Wanderer ID:', req.wandererId);
+        console.log('Scheduled:', req.scheduledDate, req.scheduledTime);
+        console.log('Created At:', req.createdAt?.toDate?.() || 'No creation date');
+        console.log('All fields:', Object.keys(req));
+      });
+      
+      // 4. Check if any requests are pending but not showing up
+      const pendingRequests = walkerRequests.filter((req: any) => req.status === 'pending');
+      console.log(`\nFound ${pendingRequests.length} PENDING requests`);
+      
+      return {
+        totalRequests: allRequestsSnapshot.docs.length,
+        walkerRequests: walkerRequests.length,
+        pendingRequests: pendingRequests.length,
+        requests: walkerRequests
+      };
+    } catch (error) {
+      console.error('Error in debugWalkRequests:', error);
+      return { error: error.message };
+    }
+  };
+
   useEffect(() => {
     const user = auth.currentUser;
-    if (!user) return;
+    console.log('Current auth user:', user);
+    if (!user) {
+      console.log('No authenticated user found');
+      return;
+    }
+
+    console.log('User UID:', user.uid);
+    console.log('User data:', userData);
+    
+    // Run the debug function
+    debugWalkRequests().then(debugInfo => {
+      console.log('Debug info:', debugInfo);
+    });
 
     // When userData arrives/changes, update availability and online status once
     if (userData) {
+      console.log('Setting availability to:', userData.available !== undefined ? userData.available : true);
       setIsAvailable(userData.available !== undefined ? userData.available : true);
       updateDoc(doc(db, 'users', user.uid), {
         isOnline: true,
         currentWalkStatus: 'idle',
-      }).catch(console.error);
+      }).catch(error => {
+        console.error('Error updating user status:', error);
+      });
     }
 
     // Get today's date at 00:00:00
@@ -66,65 +135,76 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
 
     // Subscribe to ALL walk requests for this walker
     const requestsRef = collection(db, 'walkRequests');
-    const requestsQuery = query(
+    
+    // First, try with a simple query to see if we get any results
+    const initialQuery = query(
       requestsRef,
       where('walkerId', '==', user.uid)
     );
-
-    const unsubscribe = onSnapshot(requestsQuery, (snapshot) => {
-      const allRequests = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as WalkRequest[];
-
-      console.log('All walk requests:', allRequests);
-
-      // Filter out expired requests (where scheduled date/time has passed)
-      const now = new Date();
-      const validRequests = allRequests.filter(request => {
-        // Only show pending requests in the incoming requests list
-        if (request.status !== 'pending') return false;
+    
+    console.log('Setting up listener for walker:', user.uid);
+    
+    const unsubscribe = onSnapshot(
+      initialQuery, 
+      (snapshot) => {
+        console.log('=== SNAPSHOT UPDATE ===');
+        console.log(`Received ${snapshot.docs.length} documents`);
         
-        if (!request.scheduledDate || !request.scheduledTime) return true;
-        
-        // Parse scheduled date and time
-        const [day, month, year] = request.scheduledDate.split('/').map(Number);
-        const [hours, minutes] = request.scheduledTime.split(':').map(Number);
-        
-        // Create Date object for scheduled time
-        const scheduledDateTime = new Date(year, month - 1, day, hours, minutes);
-        
-        // Only keep requests where scheduled time is in the future
-        return scheduledDateTime > now;
-      });
-      
-      console.log('Valid pending requests:', validRequests.length);
-      setIncomingRequests(validRequests);
+        const allRequests = snapshot.docs.map(doc => {
+          const data = doc.data();
+          console.log(`Request ${doc.id}:`, {
+            status: data.status,
+            walkerId: data.walkerId,
+            wandererId: data.wandererId,
+            scheduled: `${data.scheduledDate} ${data.scheduledTime}`,
+            createdAt: data.createdAt?.toDate?.() || 'No date'
+          });
+          
+          return {
+            id: doc.id,
+            ...data
+          } as WalkRequest;
+        });
 
-      // Calculate today's completed walks and earnings
-      const completedWalks = allRequests.filter(request => {
-        if (request.status !== 'completed' || !request.completedAt) return false;
+        // Log all requests for debugging
+        console.log('All requests for this walker:', allRequests);
         
-        const completedDate = request.completedAt.toDate();
-        return completedDate >= today && completedDate < tomorrow;
-      });
+        // TEMPORARY: Show all requests regardless of status for debugging
+        // setIncomingRequests(allRequests);
+        // return;
 
-      console.log('Today\'s completed walks:', completedWalks.length);
-      setTodaysWalks(completedWalks.length);
-      
-      // Calculate earnings (assuming 100 INR per walk as default)
-      const earnings = completedWalks.reduce((total, walk) => {
-        return total + (walk.pricePerHour || 100) * ((walk.duration || 60) / 60);
-      }, 0);
-      
-      console.log('Today\'s earnings:', earnings);
-      setTodaysEarnings(Math.round(earnings));
-    }, (error) => {
-      console.error('Error fetching walk requests:', error);
-    });
+        // Filter for pending requests
+        const pendingRequests = allRequests.filter(request => {
+          const isPending = request.status === 'pending';
+          if (!isPending) {
+            console.log(`Skipping non-pending request ${request.id} with status:`, request.status);
+          } else {
+            console.log(`Including pending request ${request.id}`);
+          }
+          return isPending;
+        });
 
-    return () => unsubscribe();
-  }, [userData]);
+        console.log(`Found ${pendingRequests.length} pending requests`);
+        setIncomingRequests(pendingRequests);
+      },
+      (error) => {
+        console.error('Error in walk requests listener:', error);
+      }
+    );
+
+    return () => {
+      console.log('Cleaning up walk requests listener');
+      unsubscribe();
+    };
+  }, [userData?.uid]); // Re-run when user ID changes
+
+  // Add a button to manually refresh and debug requests
+  const handleManualRefresh = async () => {
+    console.log('=== MANUAL REFRESH ===');
+    const debugInfo = await debugWalkRequests();
+    console.log('Manual refresh results:', debugInfo);
+    showToast('Debug info logged to console', 'info');
+  };
 
   const handleSignOut = async () => {
     await authService.signOut();
