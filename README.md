@@ -32,7 +32,7 @@
 
 3. **Admin Account Credentials**
    - Email: movematesofficial@gmail.com
-   - Password: Brobez@07
+   - Password: Admin@07
    For Wanderer and Walker you can create account and sign in with email and password
 
 
@@ -76,8 +76,7 @@ When booking a walk, Wanderers can specify:
 - Walking speed preference
 - Preferred language
 - Purpose of the walk
-- Number of members
-- Walk type (Solo/Group/Pet)
+- Walk type (Solo/Pet)
 - Pickup location with map integration
 - Optional drop point selection
 - Current location detection
@@ -93,11 +92,14 @@ When booking a walk, Wanderers can specify:
 - Live GPS tracking during walks
 - Interactive map showing route and progress
 - Real-time ETA and distance covered
-- In-app chat and call features
+- In-app chat and additional call features
 - Safety features including live location sharing
-- Emergency SOS button
 
 ### 7. Payment System
+- QR Scanning or Cash Payment methods
+- Payment will be recieved by MoveMates
+- Walkers will be paid monthly according to their earnings
+  
 **Fare Calculation:**
 ```plaintext
 Base Fare: ₹50
@@ -143,11 +145,10 @@ Walker Earnings = Subtotal - Commission + Tip
 
 ### 9. User Settings & Customization
 - Profile management and picture upload
-- App theme (Dark/Light mode)
-- Language preferences
 - Notification settings
 - Help & Support access
 - Privacy Policy and Terms of Service
+- Contact Us and About features
 
 ## Tech Stack
 
