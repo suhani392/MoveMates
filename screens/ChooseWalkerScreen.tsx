@@ -41,19 +41,12 @@ interface Walker {
   available?: boolean;
   isOnline?: boolean;
   currentWalkStatus?: 'idle' | 'busy' | 'offline';
-  location?: {
-    latitude: number;
-    longitude: number;
-  };
-  distance?: number; // Distance in kilometers
 }
 
 const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, route }) => {
   const scheduleData = route.params?.scheduleData;
   const [walkers, setWalkers] = useState<Walker[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
 
   // Debug schedule data
   useEffect(() => {
@@ -102,52 +95,8 @@ const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, rou
     }
   };
 
-  // Function to calculate distance between two coordinates in kilometers
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371; // Radius of the earth in km
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c; // Distance in km
-  };
-
-  const deg2rad = (deg: number): number => {
-    return deg * (Math.PI/180);
-  };
-
-  // Get user's current location
-  useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setLocationError('Location permission is required to find nearby walkers');
-          return;
-        }
-
-        const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
-        
-        setUserLocation({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude
-        });
-      } catch (error) {
-        console.error('Error getting location:', error);
-        setLocationError('Could not get your location. Showing all walkers.');
-      }
-    })();
-  }, []);
-
   // Fetch walkers from Firestore (users with role "walker" and approved)
   useEffect(() => {
-    if (!userLocation) return; // Wait until we have user's location
-
     const usersRef = collection(db, 'users');
     const walkersQuery = query(
       usersRef, 
@@ -164,7 +113,6 @@ const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, rou
           const walkersPromises = snapshot.docs.map(async (doc) => {
             const data = doc.data();
             console.log('Walker data:', data);
-            
             // Determine availability based on multiple factors
             const isOnline = data.isOnline || false;
             const currentWalkStatus = data.currentWalkStatus || 'offline';
@@ -178,17 +126,6 @@ const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, rou
             
             // Calculate actual rating from reviews
             const actualRating = await calculateWalkerRating(doc.id);
-
-            // Calculate distance if walker has location data
-            let distance = null;
-            if (data.location && userLocation) {
-              distance = calculateDistance(
-                userLocation.latitude,
-                userLocation.longitude,
-                data.location.latitude,
-                data.location.longitude
-              );
-            }
             
             return {
               id: doc.id,
@@ -211,8 +148,6 @@ const ChooseWalkerScreen: React.FC<ChooseWalkerScreenProps> = ({ navigation, rou
               available: isAvailable,
               isOnline: isOnline,
               currentWalkStatus: currentWalkStatus,
-              location: data.location,
-              distance: distance
             };
           });
           

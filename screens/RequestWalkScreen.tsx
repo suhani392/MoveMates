@@ -9,6 +9,7 @@ import {
   Modal,
   ScrollView,
   Animated,
+  ActivityIndicator,
   TextInput,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -19,7 +20,6 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { authService } from '../services/authService';
 import { collection, query, where, getDocs, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
-import { VictoryBar, VictoryChart, VictoryTheme, VictoryAxis, VictoryTooltip, VictoryVoronoiContainer } from 'victory-native';
 
 type RequestWalkScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -398,9 +398,35 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
               <MaterialIcons name="refresh" size={20} color="#666" />
             </TouchableOpacity>
           </View>
-          <View style={{backgroundColor: '#F3F4F6', borderRadius: 14, padding: 18, marginHorizontal: 10, alignItems: 'center', marginBottom: 26, marginTop: 12}}>
-            <Text style={{fontSize: 12, color: '#4B5563', marginBottom: 5}}>(Graph of your walks will appear here)</Text>
-            {/* Insert graph/chart component here in future */}
+          <View style={styles.historyContainer}>
+            {loadingHistory ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#4CAF50" />
+              </View>
+            ) : walkHistory.length > 0 ? (
+              <View>
+                <View style={styles.historyHeader}>
+                  <Text style={styles.historyHeaderText}>Date</Text>
+                  <Text style={styles.historyHeaderText}>Duration (hrs)</Text>
+                  <Text style={styles.historyHeaderText}>Walks</Text>
+                </View>
+                <ScrollView style={styles.historyList}>
+                  {walkHistory.map((item, index) => (
+                    <View key={index} style={styles.historyItem}>
+                      <Text style={styles.historyDate}>{item.date}</Text>
+                      <Text style={styles.historyDuration}>{item.duration.toFixed(1)}</Text>
+                      <Text style={styles.historyCount}>{item.walkCount}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <MaterialIcons name="directions-walk" size={48} color="#E0E0E0" />
+                <Text style={styles.emptyText}>No walk history found</Text>
+                <Text style={styles.emptySubtext}>Complete walks to see your activity</Text>
+              </View>
+            )}
           </View>
         </Animated.View>
 

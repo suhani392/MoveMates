@@ -53,12 +53,13 @@ const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
       useNativeDriver: true,
     }).start();
 
-    // Show rating modal after 2 seconds
-    const timer = setTimeout(() => {
-      setShowRatingModal(true);
-    }, 2000);
-
-    return () => clearTimeout(timer);
+      // Show rating modal after 2 seconds only for wanderers
+    if (isWandererView) {
+      const timer = setTimeout(() => {
+        setShowRatingModal(true);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   const handleSubmitRating = async () => {
@@ -73,21 +74,10 @@ const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       const userName = userDoc.exists() ? userDoc.data()?.name || 'Anonymous' : 'Anonymous';
 
-      // Determine who is being rated
+          // Only allow wanderers to rate walkers
       if (isWandererView && walkerId) {
-        // Wanderer is rating the walker
         await addDoc(collection(db, 'reviews'), {
           walkerId: walkerId,
-          userId: user.uid,
-          userName: userName,
-          rating: selectedRating,
-          createdAt: serverTimestamp(),
-          requestId: requestId || null,
-        });
-      } else if (!isWandererView && wandererId) {
-        // Walker is rating the wanderer
-        await addDoc(collection(db, 'reviews'), {
-          wandererId: wandererId,
           userId: user.uid,
           userName: userName,
           rating: selectedRating,

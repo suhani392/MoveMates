@@ -34,7 +34,6 @@ import RemovedUsersScreen from '../screens/RemovedUsersScreen';
 import ProfilePhotoScreen from '../screens/ProfilePhotoScreen';
 import UserDetailsScreen from '../screens/UserDetailsScreen';
 import LanguageScreen from '../screens/LanguageScreen';
-import RoleChangeScreen from '../screens/RoleChangeScreen';
 import PreferencesScreen from '../screens/PreferencesScreen';
 import PushNotificationsScreen from '../screens/PushNotificationsScreen';
 import EmailNotificationsScreen from '../screens/EmailNotificationsScreen';
@@ -192,7 +191,6 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="ProfilePhoto" component={ProfilePhotoScreen} />
       <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
       <Stack.Screen name="Language" component={LanguageScreen} />
-      <Stack.Screen name="RoleChange" component={RoleChangeScreen} />
       <Stack.Screen name="Preferences" component={PreferencesScreen} />
       <Stack.Screen name="PushNotifications" component={PushNotificationsScreen} />
       <Stack.Screen name="EmailNotifications" component={EmailNotificationsScreen} />

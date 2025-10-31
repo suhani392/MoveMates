@@ -12,18 +12,9 @@ import {
   Modal,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { collection, query, where, onSnapshot, doc, updateDoc, getDoc, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { WalkRequestService } from '../services/walkRequestService';
-
-interface Review {
-  id: string;
-  userId: string;
-  userName: string;
-  rating: number;
-  comment: string;
-  createdAt: any;
-}
 
 const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: any }) => {
   const wanderer = route.params?.wanderer;
@@ -34,29 +25,11 @@ const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: 
   console.log('Wanderer ID:', wanderer?.id);
   console.log('Request ID:', requestId);
   
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [wandererDetails, setWandererDetails] = useState<any>(null);
   const [walkRequest, setWalkRequest] = useState<any>(null);
-  const [actualRating, setActualRating] = useState<number>(0);
   const [showDeclineModal, setShowDeclineModal] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string>('');
 
-  // Calculate actual rating from reviews
-  useEffect(() => {
-    console.log('Calculating rating from reviews:', reviews.length);
-    if (reviews.length > 0) {
-      const totalRating = reviews.reduce((sum, review) => sum + (review.rating || 0), 0);
-      const avgRating = totalRating / reviews.length;
-      const calculatedRating = Math.round(avgRating * 10) / 10;
-      console.log('Total rating:', totalRating, 'Average:', avgRating, 'Calculated:', calculatedRating);
-      setActualRating(calculatedRating);
-    } else {
-      console.log('No reviews, setting rating to 0');
-      setActualRating(0);
-    }
-  }, [reviews]);
 
   // Fetch wanderer details and walk request
   useEffect(() => {
@@ -83,95 +56,6 @@ const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: 
     fetchDetails();
   }, [wanderer?.id, requestId]);
 
-  // Fetch reviews for this wanderer
-  useEffect(() => {
-    if (!wanderer?.id) {
-      setLoading(false);
-      return;
-    }
-
-    console.log('Fetching reviews for wanderer ID:', wanderer.id);
-    setDebugInfo(`Querying wandererId: ${wanderer.id}`);
-    
-    const reviewsRef = collection(db, 'reviews');
-    const reviewsQuery = query(reviewsRef, where('wandererId', '==', wanderer.id));
-
-    const unsubscribe = onSnapshot(
-      reviewsQuery,
-      (snapshot) => {
-        console.log('Reviews snapshot size:', snapshot.size);
-        console.log('All docs in snapshot:', snapshot.docs.map(d => ({ id: d.id, data: d.data() })));
-        
-        setDebugInfo(`Found ${snapshot.size} reviews for ${wanderer.id}`);
-        
-        if (!snapshot.empty) {
-          const reviewsList: Review[] = snapshot.docs.map((doc) => {
-            const data = doc.data();
-            console.log('Review doc:', doc.id, 'wandererId:', data.wandererId, 'rating:', data.rating);
-            return {
-              id: doc.id,
-              ...data,
-            } as Review;
-          });
-          console.log('Reviews found:', reviewsList.length, reviewsList);
-          setReviews(reviewsList);
-        } else {
-          console.log('No reviews found for wanderer:', wanderer.id);
-          console.log('Query was: wandererId ==', wanderer.id);
-          setReviews([]);
-        }
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Error fetching reviews:', error);
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [wanderer?.id]);
-
-  // Calculate rating distribution
-  const getRatingDistribution = () => {
-    const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-    reviews.forEach((review) => {
-      if (review.rating >= 1 && review.rating <= 5) {
-        distribution[review.rating as keyof typeof distribution]++;
-      }
-    });
-    return distribution;
-  };
-
-  const ratingDistribution = getRatingDistribution();
-  const totalReviews = reviews.length;
-
-  const renderRatingBar = (stars: number, count: number) => {
-    const percentage = totalReviews > 0 ? (count / totalReviews) * 100 : 0;
-    return (
-      <View key={stars} style={styles.ratingBarRow}>
-        <Text style={styles.ratingBarLabel}>{stars}</Text>
-        <View style={styles.ratingBarContainer}>
-          <View style={[styles.ratingBarFill, { width: `${percentage}%` }]} />
-        </View>
-        <Text style={styles.ratingBarCount}>({count})</Text>
-      </View>
-    );
-  };
-
-  const renderStars = (rating: number) => {
-    return (
-      <View style={styles.starsContainer}>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <MaterialIcons
-            key={star}
-            name="star"
-            size={20}
-            color={star <= rating ? '#FFC107' : '#E0E0E0'}
-          />
-        ))}
-      </View>
-    );
-  };
 
   const handleAcceptRequest = async () => {
     if (!requestId) {
@@ -379,31 +263,6 @@ const WandererDetailsScreen = ({ navigation, route }: { navigation: any; route: 
             </View>
           )}
 
-          {/* Ratings Section */}
-          <View style={styles.ratingsSection}>
-            <Text style={styles.sectionTitle}>Ratings</Text>
-            {debugInfo && (
-              <Text style={{ fontSize: 12, color: 'red', marginBottom: 10, textAlign: 'center' }}>
-                DEBUG: {debugInfo} | Reviews: {reviews.length}
-              </Text>
-            )}
-            <View style={styles.ratingsContent}>
-              {/* Average Rating */}
-              <View style={styles.averageRatingContainer}>
-                <Text style={styles.averageRatingNumber}>
-                  {actualRating > 0 ? actualRating.toFixed(1) : '0.0'}
-                </Text>
-                {renderStars(Math.round(actualRating))}
-              </View>
-
-              {/* Rating Distribution */}
-              <View style={styles.ratingDistribution}>
-                {[5, 4, 3, 2, 1].map((stars) =>
-                  renderRatingBar(stars, ratingDistribution[stars as keyof typeof ratingDistribution])
-                )}
-              </View>
-            </View>
-          </View>
         </View>
 
         {/* Accept Request Button */}
@@ -585,60 +444,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333333',
     marginBottom: 8,
-  },
-  ratingsSection: {
-    marginTop: 10,
-  },
-  ratingsContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  averageRatingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-  },
-  averageRatingNumber: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: '#000000',
-    marginBottom: 8,
-  },
-  starsContainer: {
-    flexDirection: 'row',
-  },
-  ratingDistribution: {
-    flex: 2,
-    paddingLeft: 20,
-  },
-  ratingBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  ratingBarLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333333',
-    width: 15,
-  },
-  ratingBarContainer: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 4,
-    marginHorizontal: 10,
-    overflow: 'hidden',
-  },
-  ratingBarFill: {
-    height: '100%',
-    backgroundColor: '#5C6BC0',
-    borderRadius: 4,
-  },
-  ratingBarCount: {
-    fontSize: 12,
-    color: '#666666',
-    width: 30,
   },
   acceptButton: {
     backgroundColor: '#000000',

@@ -44,14 +44,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 
           <TouchableOpacity 
             style={[styles.card, styles.generalCard]}
-            onPress={() => navigation.navigate('RoleChange')}
-          >
-            <Text style={styles.cardText}>{t('roleChange')}</Text>
-            <MaterialIcons name="chevron-right" size={24} color="#000000" />
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.card, styles.generalCard]}
             onPress={() => navigation.navigate('Preferences')}
           >
             <Text style={styles.cardText}>{t('preferences')}</Text>
