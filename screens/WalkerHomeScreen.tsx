@@ -390,21 +390,21 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
               activeOpacity={0.7}
             >
             <View style={styles.cardContent}>
-                {/* Profile Image */}
+              {/* Profile Image */}
               <View style={styles.profileImageContainer}>
-                  {request.wandererImage ? (
-                    <Image 
-                      source={{ uri: request.wandererImage }} 
-                      style={styles.profileImageActual} 
-                    />
-                  ) : (
-                <View style={styles.profileImage}>
-                  <MaterialIcons name="person" size={60} color="#CCCCCC" />
-                </View>
-                  )}
+                {request.wandererImage ? (
+                  <Image 
+                    source={{ uri: request.wandererImage }} 
+                    style={styles.profileImageActual} 
+                  />
+                ) : (
+                  <View style={styles.profileImage}>
+                    <MaterialIcons name="person" size={24} color="#CCCCCC" />
+                  </View>
+                )}
               </View>
 
-              {/* Wanderer Info */}
+              {/* Request Details */}
               <View style={styles.requestDetails}>
                   <Text style={styles.requestName}>{request.wandererName}</Text>
                 

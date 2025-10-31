@@ -54,10 +54,10 @@ const WalkerRequestedScreen: React.FC<WalkerRequestedScreenProps> = ({ navigatio
       const requestData = {
         wandererId: user.uid,
         wandererName: scheduleData.wandererName || 'Unknown Wanderer',
-        wandererImage: scheduleData.wandererImage,
+        wandererImage: user.photoURL || null, // Include wanderer's profile picture
         walkerId: walker.id,
         walkerName: walker.name,
-        walkerImage: walker.image || walker.profileImage,
+        // Keep walkerImage excluded to reduce request size
         walkType: scheduleData.walkType || 'route',
         pickup: scheduleData.pickup || scheduleData.meetingPoint || '',
         destination: scheduleData.destination || '',

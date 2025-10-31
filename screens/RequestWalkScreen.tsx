@@ -36,8 +36,6 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
   const { colors } = useTheme();
   const { t } = useLanguage();
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
-  const [walkHistory, setWalkHistory] = useState<WalkData[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(30))[0];
@@ -211,66 +209,6 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
     },
   ];
 
-  const fetchWalkHistory = async () => {
-    const user = auth.currentUser;
-    if (!user) {
-      setLoadingHistory(false);
-      return;
-    }
-
-    try {
-      const requestsRef = collection(db, 'walkRequests');
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
-      // Query for completed walks in the last 30 days
-      const q = query(
-        requestsRef,
-        where('status', '==', 'completed'),
-        where('completedAt', '>=', Timestamp.fromDate(thirtyDaysAgo)),
-        orderBy('completedAt', 'desc')
-      );
-
-      const querySnapshot = await getDocs(q);
-      
-      // Group walks by date and calculate total duration
-      const walksByDate: Record<string, { duration: number; count: number }> = {};
-      
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const walkDate = data.completedAt?.toDate().toDateString() || new Date().toDateString();
-        const duration = data.duration || 0; // in minutes
-        
-        if (!walksByDate[walkDate]) {
-          walksByDate[walkDate] = { duration: 0, count: 0 };
-        }
-        
-        walksByDate[walkDate].duration += duration;
-        walksByDate[walkDate].count += 1;
-      });
-
-      // Convert to array and format for the chart
-      const historyData = Object.entries(walksByDate).map(([date, { duration, count }]) => ({
-        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        duration: Math.round(duration / 60), // Convert to hours
-        walkCount: count,
-      }));
-
-      // Sort by date
-      historyData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      
-      setWalkHistory(historyData);
-    } catch (error) {
-      console.error('Error fetching walk history:', error);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  const handleReloadAnalysis = () => {
-    setLoadingHistory(true);
-    fetchWalkHistory();
-  };
 
   return (
     <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
@@ -350,6 +288,7 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
             styles.walkTypeSection,
             {
               opacity: fadeAnim,
+              marginBottom: 30, // Add some bottom margin to compensate for removed section
             },
           ]}
         >
@@ -377,57 +316,6 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
               </TouchableOpacity>
             </Animated.View>
           ))}
-        </Animated.View>
-
-        {/* Your Walk Analysis Section */}
-        <Animated.View 
-          style={[
-            styles.walkTypeSection,
-            {
-              opacity: fadeAnim,
-            },
-          ]}
-        >
-          <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 8, marginRight: 12}}>
-            <Text style={styles.sectionTitle}>Your Walk Analysis</Text>
-            <TouchableOpacity
-              style={{padding:8, borderRadius:20, backgroundColor:'#F5F5F5'}} 
-              onPress={handleReloadAnalysis}
-              hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-            >
-              <MaterialIcons name="refresh" size={20} color="#666" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.historyContainer}>
-            {loadingHistory ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#4CAF50" />
-              </View>
-            ) : walkHistory.length > 0 ? (
-              <View>
-                <View style={styles.historyHeader}>
-                  <Text style={styles.historyHeaderText}>Date</Text>
-                  <Text style={styles.historyHeaderText}>Duration (hrs)</Text>
-                  <Text style={styles.historyHeaderText}>Walks</Text>
-                </View>
-                <ScrollView style={styles.historyList}>
-                  {walkHistory.map((item, index) => (
-                    <View key={index} style={styles.historyItem}>
-                      <Text style={styles.historyDate}>{item.date}</Text>
-                      <Text style={styles.historyDuration}>{item.duration.toFixed(1)}</Text>
-                      <Text style={styles.historyCount}>{item.walkCount}</Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            ) : (
-              <View style={styles.emptyContainer}>
-                <MaterialIcons name="directions-walk" size={48} color="#E0E0E0" />
-                <Text style={styles.emptyText}>No walk history found</Text>
-                <Text style={styles.emptySubtext}>Complete walks to see your activity</Text>
-              </View>
-            )}
-          </View>
         </Animated.View>
 
         {/* Wellness Footer Card */}

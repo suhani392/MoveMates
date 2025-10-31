@@ -346,8 +346,8 @@ const WandererUpdatesScreen: React.FC<WandererUpdatesScreenProps> = ({ navigatio
 
           console.log('Distance to pickup:', distance, 'meters');
 
-          // Check if walker is within 300 meters of pickup location
-          const REQUIRED_DISTANCE = 300; // meters
+          // Check if walker is within 500 meters of pickup location
+          const REQUIRED_DISTANCE = 500; // meters
           
           if (distance > REQUIRED_DISTANCE) {
             Alert.alert(
