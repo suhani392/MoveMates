@@ -9,6 +9,7 @@ import {
   Modal,
   ScrollView,
   Animated,
+  TextInput,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -16,23 +17,35 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { authService } from '../services/authService';
-import { collection, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
+import { VictoryBar, VictoryChart, VictoryTheme, VictoryAxis, VictoryTooltip, VictoryVoronoiContainer } from 'victory-native';
 
 type RequestWalkScreenProps = {
   navigation: StackNavigationProp<any>;
 };
+
+interface WalkData {
+  date: string;
+  duration: number;
+  walkCount: number;
+}
 
 const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => {
   const { userData } = useAuth();
   const { colors } = useTheme();
   const { t } = useLanguage();
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const [walkHistory, setWalkHistory] = useState<WalkData[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(30))[0];
   const [caloriesBurnt, setCaloriesBurnt] = useState<number|null>(null);
   const [loadingCalories, setLoadingCalories] = useState(true);
+  const [showTargetModal, setShowTargetModal] = useState(false);
+  const [weeklyTarget, setWeeklyTarget] = useState(1500);
+  const [tempTarget, setTempTarget] = useState('1500');
 
   // Listen for unread notifications
   useEffect(() => {
@@ -198,9 +211,65 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
     },
   ];
 
+  const fetchWalkHistory = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLoadingHistory(false);
+      return;
+    }
+
+    try {
+      const requestsRef = collection(db, 'walkRequests');
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      // Query for completed walks in the last 30 days
+      const q = query(
+        requestsRef,
+        where('status', '==', 'completed'),
+        where('completedAt', '>=', Timestamp.fromDate(thirtyDaysAgo)),
+        orderBy('completedAt', 'desc')
+      );
+
+      const querySnapshot = await getDocs(q);
+      
+      // Group walks by date and calculate total duration
+      const walksByDate: Record<string, { duration: number; count: number }> = {};
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const walkDate = data.completedAt?.toDate().toDateString() || new Date().toDateString();
+        const duration = data.duration || 0; // in minutes
+        
+        if (!walksByDate[walkDate]) {
+          walksByDate[walkDate] = { duration: 0, count: 0 };
+        }
+        
+        walksByDate[walkDate].duration += duration;
+        walksByDate[walkDate].count += 1;
+      });
+
+      // Convert to array and format for the chart
+      const historyData = Object.entries(walksByDate).map(([date, { duration, count }]) => ({
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        duration: Math.round(duration / 60), // Convert to hours
+        walkCount: count,
+      }));
+
+      // Sort by date
+      historyData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      setWalkHistory(historyData);
+    } catch (error) {
+      console.error('Error fetching walk history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   const handleReloadAnalysis = () => {
-    // TODO: fetch/refresh analysis graph data
-    console.log('Walk analysis (graph) reload triggered');
+    setLoadingHistory(true);
+    fetchWalkHistory();
   };
 
   return (
@@ -264,11 +333,15 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
           </View>
 
           {/* Weekly Target Card */}
-          <View style={styles.statCard}>
+          <TouchableOpacity 
+            style={styles.statCard}
+            onPress={() => setShowTargetModal(true)}
+            activeOpacity={0.9}
+          >
             <MaterialIcons name="flag" size={32} color="#FFFFFF" />
-            <Text style={styles.statValue}>1500</Text>
+            <Text style={styles.statValue}>{weeklyTarget}</Text>
             <Text style={styles.statLabel}>Target This{'\n'}Week</Text>
-          </View>
+          </TouchableOpacity>
         </Animated.View>
 
         {/* Walk Type Section */}
@@ -457,6 +530,65 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
           </View>
         </View>
       </Modal>
+
+      {/* Weekly Target Modal */}
+      <Modal
+        visible={showTargetModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowTargetModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Set Weekly Calorie Target</Text>
+            <Text style={styles.modalSubtitle}>How many calories do you want to burn this week?</Text>
+            
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                value={tempTarget}
+                onChangeText={setTempTarget}
+                keyboardType="number-pad"
+                maxLength={5}
+                selectTextOnFocus={true}
+              />
+              <Text style={styles.inputSuffix}>calories</Text>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowTargetModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={() => {
+                  const target = parseInt(tempTarget) || 0;
+                  if (target > 0) {
+                    setWeeklyTarget(target);
+                    // Here you would typically save this to your backend
+                    // await saveWeeklyTarget(user.uid, target);
+                  }
+                  setShowTargetModal(false);
+                }}
+              >
+                <Text style={styles.saveButtonText}>Save Target</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Floating Action Button for Walker Updates */}
+      <TouchableOpacity 
+        style={styles.floatingButton}
+        onPress={() => navigation.navigate('WalkerUpdates')}
+        activeOpacity={0.8}
+      >
+        <MaterialIcons name="directions-walk" size={28} color="#FFFFFF" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -591,20 +723,56 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   wellnessFooter: {
-    backgroundColor: '#C8E6C9',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     marginHorizontal: 20,
     marginTop: 10,
     marginBottom: 20,
-    padding: 25,
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   wellnessContent: {
+    alignItems: 'stretch',
+  },
+  wellnessHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 15,
+  },
+  chartContainer: {
+    marginTop: 10,
+  },
+  chartLegend: {
+    textAlign: 'center',
+    color: '#666666',
+    fontSize: 12,
+    marginTop: 8,
+  },
+  noDataContainer: {
+    alignItems: 'center',
+    paddingVertical: 30,
+  },
+  noDataText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#757575',
+    marginTop: 10,
+  },
+  noDataSubtext: {
+    fontSize: 14,
+    color: '#9E9E9E',
+    textAlign: 'center',
+    marginTop: 5,
+  },
+  loader: {
+    marginVertical: 20,
   },
   wellnessIconContainer: {
     width: 60,
@@ -671,25 +839,118 @@ const styles = StyleSheet.create({
     left: 30,
   },
   logoutText: {
+    color: '#FF3B30',
     fontSize: 16,
-    color: '#FF0000',
+    fontWeight: '500',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    marginBottom: 24,
+    width: '100%',
+    height: 56,
+    backgroundColor: '#F9F9F9',
+  },
+  input: {
+    flex: 1,
+    fontSize: 18,
+    color: '#333333',
+    fontWeight: '600',
+    padding: 0,
+  },
+  inputSuffix: {
+    fontSize: 16,
+    color: '#666666',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 8,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 4,
+  },
+  cancelButton: {
+    backgroundColor: '#F5F5F5',
+  },
+  saveButton: {
+    backgroundColor: '#4CAF50',
+  },
+  cancelButtonText: {
+    color: '#666666',
+    fontSize: 16,
     fontWeight: '600',
   },
-  walkerUpdatesButton: {
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  floatingButton: {
     position: 'absolute',
-    bottom: 30,
-    right: 30,
+    bottom: 80,  // Increased from 30 to 80 to move it up and avoid navigation bar
+    right: 20,
     width: 60,
     height: 60,
     borderRadius: 30,
     backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
     elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
 });
 

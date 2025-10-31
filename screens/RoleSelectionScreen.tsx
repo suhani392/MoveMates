@@ -35,6 +35,7 @@ const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation, r
   return (
     <View style={styles.container}>
       <View style={styles.content}>
+        <Text style={styles.title}>Choose Your Role</Text>
         <Text style={styles.subtitle}>
           Select the role you would like to opt for in MoveMates :
         </Text>

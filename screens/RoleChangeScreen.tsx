@@ -27,45 +27,47 @@ const RoleChangeScreen: React.FC<RoleChangeScreenProps> = ({ navigation }) => {
   const [selectedRole, setSelectedRole] = useState(userData?.role || 'wanderer');
   const [loading, setLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertTitle, setAlertTitle] = useState('');
+  const [onConfirmCallback, setOnConfirmCallback] = useState<(() => void) | null>(null);
+
+  const showCustomAlert = (title: string, message: string, onConfirm?: () => void) => {
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setShowAlertModal(true);
+    // Store the confirm callback if provided
+    if (onConfirm) {
+      setOnConfirmCallback(() => onConfirm);
+    } else {
+      setOnConfirmCallback(null);
+    }
+  };
 
   const handleRoleChange = async () => {
     if (!userData?.uid) return;
 
     if (selectedRole === userData.role) {
-      Alert.alert(t('error'), selectedRole === 'walker' ? t('alreadyWalker') : t('alreadyWanderer'));
+      showCustomAlert(
+        'Role Already Set',
+        `You are already a ${selectedRole === 'walker' ? 'Walker' : 'Wanderer'}.`
+      );
       return;
     }
 
     // If changing from wanderer to walker, send request to admin
     if (userData.role === 'wanderer' && selectedRole === 'walker') {
-      setShowConfirmModal(true);
-    } else {
-      // For other role changes, update directly
-      Alert.alert(
+      showCustomAlert(
         'Confirm Role Change',
-        `Change role to ${selectedRole}?`,
-        [
-          { text: t('cancel'), style: 'cancel' },
-          {
-            text: 'Confirm',
-            onPress: async () => {
-              setLoading(true);
-              try {
-                await updateDoc(doc(db, 'users', userData.uid), {
-                  role: selectedRole,
-                });
-
-                Alert.alert(t('success'), 'Role changed successfully');
-                navigation.goBack();
-              } catch (error) {
-                console.error('Error changing role:', error);
-                Alert.alert(t('error'), 'Failed to change role');
-              } finally {
-                setLoading(false);
-              }
-            },
-          },
-        ]
+        `Are you sure you want to change your role to ${selectedRole}?`,
+        handleConfirmRoleChange
+      );
+    } else {
+      // For other role changes, show confirmation
+      showCustomAlert(
+        'Confirm Role Change',
+        `Are you sure you want to change your role to ${selectedRole}?`,
+        handleDirectRoleUpdate
       );
     }
   };
@@ -97,8 +99,78 @@ const RoleChangeScreen: React.FC<RoleChangeScreenProps> = ({ navigation }) => {
     }
   };
 
+  const renderAlertContent = () => (
+    <View style={styles.alertContainer}>
+      <View style={styles.alertContent}>
+        <Text style={styles.alertTitle}>Role Already Set</Text>
+        <Text style={styles.alertMessage}>
+          You are already a {selectedRole === 'walker' ? 'Walker' : 'Wanderer'}.
+        </Text>
+        <TouchableOpacity
+          style={styles.alertButton}
+          onPress={() => {
+            // Dismiss the alert
+            Alert.alert('', '', { cancelable: true });
+          }}
+        >
+          <Text style={styles.alertButtonText}>OK</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  // Custom Alert Modal Component
+  const CustomAlert = () => (
+    <Modal
+      transparent={true}
+      visible={showAlertModal}
+      animationType="fade"
+      onRequestClose={() => setShowAlertModal(false)}
+    >
+      <View style={styles.alertOverlay}>
+        <View style={styles.alertContainer}>
+          <View style={styles.alertHeader}>
+            <Text style={styles.alertHeaderText}>{alertTitle}</Text>
+          </View>
+          <View style={styles.alertBody}>
+            <Text style={styles.alertMessageText}>{alertMessage}</Text>
+          </View>
+          <View style={styles.alertFooter}>
+            <TouchableOpacity
+              style={styles.alertButton}
+              onPress={() => setShowAlertModal(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.alertButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  // Handle role update directly (for non-walker role changes)
+  const handleDirectRoleUpdate = async () => {
+    if (!userData?.uid) return;
+    
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'users', userData.uid), {
+        role: selectedRole,
+      });
+      showCustomAlert('Success', 'Role changed successfully');
+      navigation.goBack();
+    } catch (error) {
+      console.error('Error changing role:', error);
+      showCustomAlert('Error', 'Failed to change role');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
+      <CustomAlert />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         {/* Header */}
         <View style={styles.header}>
@@ -248,6 +320,129 @@ const RoleChangeScreen: React.FC<RoleChangeScreenProps> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  // Alert Modal Styles
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  alertContainer: {
+    width: '100%',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  alertHeader: {
+    backgroundColor: '#5B21B6',
+    padding: 15,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  alertHeaderText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  alertBody: {
+    padding: 25,
+    alignItems: 'center',
+  },
+  alertMessageText: {
+    fontSize: 16,
+    color: '#4B5563',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  alertFooter: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    padding: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  alertButton: {
+    backgroundColor: '#5B21B6',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+  alertButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    backgroundColor: '#E5E7EB',
+    marginRight: 10,
+  },
+  cancelButtonText: {
+    color: '#374151',
+  },
+  // Alert Styles
+  alertContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
+  alertContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '80%',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  alertMessage: {
+    fontSize: 16,
+    color: '#4B5563',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  alertButton: {
+    backgroundColor: '#5B21B6',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    elevation: 2,
+  },
+  alertButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
+    textAlign: 'center',
+  },
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',

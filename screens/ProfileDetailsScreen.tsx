@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Platform, Modal, TouchableWithoutFeedback, Dimensions } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -40,6 +40,7 @@ const ProfileDetailsScreen: React.FC<ProfileDetailsScreenProps> = ({ navigation,
   const [experience, setExperience] = useState('');
   
   const [isLoading, setIsLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const handleDocumentPick = async () => {
     try {
@@ -67,7 +68,7 @@ const ProfileDetailsScreen: React.FC<ProfileDetailsScreenProps> = ({ navigation,
 
   const handleSubmit = async () => {
     // Validation for common fields
-    if (!dob || !gender || !motherTongue || !preferredLanguages || !contactNo || !email || !address) {
+    if (!dob || !gender || !motherTongue || !preferredLanguages || !contactNo || !email || !address || !age) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
@@ -119,7 +120,12 @@ const ProfileDetailsScreen: React.FC<ProfileDetailsScreenProps> = ({ navigation,
     setIsLoading(false);
 
     if (result.success) {
-      Alert.alert('Success', 'Account created! Please login.');
+      setShowSuccessModal(true);
+      // Auto-navigate to login after 2 seconds
+      setTimeout(() => {
+        setShowSuccessModal(false);
+        navigation.navigate('Login');
+      }, 2000);
     } else {
       Alert.alert('Error', result.error);
     }
@@ -228,13 +234,13 @@ const ProfileDetailsScreen: React.FC<ProfileDetailsScreenProps> = ({ navigation,
             textAlignVertical="top"
           />
 
-          {/* Age (Optional) */}
-          <Text style={styles.label}>Age</Text>
+          {/* Age */}
+          <Text style={styles.label}>Age <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={styles.input}
             value={age}
             onChangeText={setAge}
-            placeholder="Enter your age (optional)"
+            placeholder="Enter your age"
             placeholderTextColor="#999"
             keyboardType="numeric"
           />
@@ -388,6 +394,26 @@ const ProfileDetailsScreen: React.FC<ProfileDetailsScreenProps> = ({ navigation,
             </Text>
           </TouchableOpacity>
         </View>
+        
+        {/* Success Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={showSuccessModal}
+          onRequestClose={() => setShowSuccessModal(false)}
+        >
+          <TouchableWithoutFeedback onPress={() => setShowSuccessModal(false)}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.successIconContainer}>
+                  <MaterialIcons name="check-circle" size={60} color="#4CAF50" />
+                </View>
+                <Text style={styles.modalTitle}>Account Created Successfully!</Text>
+                <Text style={styles.modalText}>Your account has been created successfully. Redirecting to login...</Text>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
       </View>
     </ScrollView>
   );
@@ -399,120 +425,106 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   contentContainer: {
-    flexGrow: 1,
+    padding: 20,
+    paddingBottom: 40,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 30,
-    paddingTop: 60,
-    paddingBottom: 40,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#000000',
-    marginBottom: 12,
-    textAlign: 'center',
+    color: '#333333',
+    marginBottom: 10,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#666666',
-    marginBottom: 30,
+    marginBottom: 25,
     lineHeight: 22,
-    textAlign: 'center',
   },
   formContainer: {
-    marginBottom: 20,
+    flex: 1,
   },
   label: {
     fontSize: 16,
-    color: '#000000',
-    marginBottom: 10,
     fontWeight: '500',
+    color: '#444444',
+    marginTop: 15,
+    marginBottom: 5,
   },
   required: {
     color: '#FF0000',
-    fontWeight: 'bold',
   },
   input: {
-    backgroundColor: '#D9D9D9',
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    padding: 12,
     fontSize: 16,
-    marginBottom: 20,
-    color: '#000000',
+    color: '#333333',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   textArea: {
-    borderRadius: 20,
-    paddingTop: 16,
-    minHeight: 100,
+    height: 100,
+    textAlignVertical: 'top',
   },
   genderContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   genderButton: {
     flex: 1,
-    backgroundColor: '#D9D9D9',
-    borderRadius: 25,
-    paddingVertical: 16,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+    marginHorizontal: 4,
     alignItems: 'center',
-    marginHorizontal: 5,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   genderButtonSelected: {
-    backgroundColor: '#000000',
+    backgroundColor: '#6B46C1',
+    borderColor: '#6B46C1',
   },
   genderText: {
-    fontSize: 16,
-    color: '#666',
+    color: '#666666',
     fontWeight: '500',
   },
   genderTextSelected: {
     color: '#FFFFFF',
   },
   uploadButton: {
-    backgroundColor: '#D9D9D9',
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderStyle: 'dashed',
   },
   uploadButtonText: {
-    fontSize: 16,
-    color: '#666',
     marginLeft: 10,
+    color: '#666666',
+    fontSize: 16,
   },
   documentsList: {
-    marginBottom: 20,
-    backgroundColor: '#F0F8FF',
-    padding: 15,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#4CAF50',
+    marginTop: 10,
   },
   documentsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 12,
+    fontSize: 14,
+    color: '#666666',
+    marginBottom: 5,
   },
   documentItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: '#F9F9F9',
+    padding: 10,
+    borderRadius: 6,
+    marginTop: 8,
   },
   documentInfo: {
     flex: 1,
@@ -520,20 +532,20 @@ const styles = StyleSheet.create({
   },
   documentName: {
     fontSize: 14,
-    color: '#000',
-    fontWeight: '500',
+    color: '#333333',
   },
   documentSize: {
     fontSize: 12,
-    color: '#666',
+    color: '#999999',
     marginTop: 2,
   },
   submitButton: {
-    backgroundColor: '#000000',
-    borderRadius: 30,
-    paddingVertical: 16,
+    backgroundColor: '#6B46C1',
+    padding: 15,
+    borderRadius: 8,
     alignItems: 'center',
     marginTop: 20,
+    marginBottom: 30,
   },
   submitButtonDisabled: {
     backgroundColor: '#CCCCCC',
@@ -542,6 +554,44 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '85%',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 25,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  successIconContainer: {
+    marginBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+    color: '#333',
+  },
+  modalText: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: '#666',
+    lineHeight: 22,
   },
 });
 

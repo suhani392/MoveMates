@@ -19,6 +19,8 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
   const [isAvailable, setIsAvailable] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const [incomingRequests, setIncomingRequests] = useState<WalkRequest[]>([]);
+  const [todaysWalks, setTodaysWalks] = useState<number>(0);
+  const [todaysEarnings, setTodaysEarnings] = useState<number>(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const { userData } = useAuth();
@@ -44,27 +46,84 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
   }, []);
 
   useEffect(() => {
-      const user = auth.currentUser;
-    if (user) {
-      // When userData arrives/changes, update availability and online status once
-      if (userData) {
-        setIsAvailable(userData.available !== undefined ? userData.available : true);
-        updateDoc(doc(db, 'users', user.uid), {
-          isOnline: true,
-          currentWalkStatus: 'idle',
-        }).catch(() => {});
-      }
+    const user = auth.currentUser;
+    if (!user) return;
 
-      // Subscribe to incoming walk requests
-      const unsubscribe = WalkRequestService.subscribeToWalkerRequests(user.uid, (requests) => {
-        console.log('Received walk requests:', requests.length, 'requests');
-        setIncomingRequests(requests);
+    // When userData arrives/changes, update availability and online status once
+    if (userData) {
+      setIsAvailable(userData.available !== undefined ? userData.available : true);
+      updateDoc(doc(db, 'users', user.uid), {
+        isOnline: true,
+        currentWalkStatus: 'idle',
+      }).catch(console.error);
+    }
+
+    // Get today's date at 00:00:00
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Subscribe to ALL walk requests for this walker
+    const requestsRef = collection(db, 'walkRequests');
+    const requestsQuery = query(
+      requestsRef,
+      where('walkerId', '==', user.uid)
+    );
+
+    const unsubscribe = onSnapshot(requestsQuery, (snapshot) => {
+      const allRequests = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as WalkRequest[];
+
+      console.log('All walk requests:', allRequests);
+
+      // Filter out expired requests (where scheduled date/time has passed)
+      const now = new Date();
+      const validRequests = allRequests.filter(request => {
+        // Only show pending requests in the incoming requests list
+        if (request.status !== 'pending') return false;
+        
+        if (!request.scheduledDate || !request.scheduledTime) return true;
+        
+        // Parse scheduled date and time
+        const [day, month, year] = request.scheduledDate.split('/').map(Number);
+        const [hours, minutes] = request.scheduledTime.split(':').map(Number);
+        
+        // Create Date object for scheduled time
+        const scheduledDateTime = new Date(year, month - 1, day, hours, minutes);
+        
+        // Only keep requests where scheduled time is in the future
+        return scheduledDateTime > now;
+      });
+      
+      console.log('Valid pending requests:', validRequests.length);
+      setIncomingRequests(validRequests);
+
+      // Calculate today's completed walks and earnings
+      const completedWalks = allRequests.filter(request => {
+        if (request.status !== 'completed' || !request.completedAt) return false;
+        
+        const completedDate = request.completedAt.toDate();
+        return completedDate >= today && completedDate < tomorrow;
       });
 
-      // Test code removed - system is working!
+      console.log('Today\'s completed walks:', completedWalks.length);
+      setTodaysWalks(completedWalks.length);
+      
+      // Calculate earnings (assuming 100 INR per walk as default)
+      const earnings = completedWalks.reduce((total, walk) => {
+        return total + (walk.pricePerHour || 100) * ((walk.duration || 60) / 60);
+      }, 0);
+      
+      console.log('Today\'s earnings:', earnings);
+      setTodaysEarnings(Math.round(earnings));
+    }, (error) => {
+      console.error('Error fetching walk requests:', error);
+    });
 
-      return () => unsubscribe();
-    }
+    return () => unsubscribe();
   }, [userData]);
 
   const handleSignOut = async () => {
@@ -192,20 +251,17 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
               <MaterialIcons name="directions-walk" size={28} color="#5B21B6" />
             </View>
             <View style={styles.statTextContainer}>
-              <Text style={styles.statNumber}>24</Text>
-              <Text style={styles.statLabel}>Total Walks</Text>
+              <Text style={styles.statNumber}>{todaysWalks}</Text>
+              <Text style={styles.statLabel}>Today's Walks</Text>
             </View>
-            <View style={styles.statTrendBadge}>
-              <Ionicons name="trending-up" size={12} color="#22C55E" />
-              <Text style={styles.statTrendText}>+12%</Text>
-            </View>
+            {/* Removed trend badge as it's not needed for today's stats */}
           </View>
           <View style={[styles.statCard, styles.purpleCard]}>
             <View style={styles.statIconContainer}>
               <MaterialIcons name="account-balance-wallet" size={28} color="#5B21B6" />
             </View>
             <View style={styles.statTextContainer}>
-              <Text style={styles.statNumber}>₹2,780</Text>
+              <Text style={styles.statNumber}>₹{todaysEarnings}</Text>
               <Text style={styles.statLabel}>Today's Earnings</Text>
             </View>
             <View style={styles.statTrendBadge}>
@@ -315,7 +371,7 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
           style={styles.bottomNavButton}
           onPress={() => navigation.navigate('WandererUpdates')}
         >
-          <Image source={require('../assets/walk.png')} style={{ width: 28, height: 28, tintColor: '#FFFFFF' }} />
+          <Image source={require('../assets/walk.png')} style={{ width: 24, height: 24, tintColor: '#FFFFFF' }} />
         </TouchableOpacity>
       </View>
 
@@ -700,21 +756,22 @@ const styles = StyleSheet.create({
   },
   bottomNav: {
     position: 'absolute',
-    bottom: 30,
-    right: 30,
+    bottom: 80,  // Slightly adjusted from 90
+    right: 20,   // Moved further right from 30
+    zIndex: 10,
   },
   bottomNavButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 50,    // Reduced from 60
+    height: 50,   // Reduced from 60
+    borderRadius: 25,  // Half of the new width/height
     backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 8,
+    shadowRadius: 4,
+    elevation: 6,
   },
 
   // Drawer

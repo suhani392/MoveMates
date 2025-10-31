@@ -52,6 +52,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            placeholder="user@gmail.com"
             placeholderTextColor="#999"
           />
 
@@ -62,6 +63,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
+              placeholder="user@birthyear"
               placeholderTextColor="#999"
             />
             <TouchableOpacity

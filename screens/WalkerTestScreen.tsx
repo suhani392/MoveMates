@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, TextInput, Dimensions, Animated, Easing, SafeAreaView, StatusBar } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { db, serverTimestamp } from '../firebaseConfig';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -75,6 +77,8 @@ function evaluateTrustIndex(answers) {
 
 const TEST_DURATION_SECONDS = 35 * 60;
 
+const { width } = Dimensions.get('window');
+
 const WalkerTestScreen = ({ navigation }) => {
   const { user } = useAuth();
   const [started, setStarted] = useState(false);
@@ -82,7 +86,37 @@ const WalkerTestScreen = ({ navigation }) => {
   const [answers, setAnswers] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const timerRef = useRef();
+  const [currentSection, setCurrentSection] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [allQuestionsAnswered, setAllQuestionsAnswered] = useState(false);
+  
+  const SECTIONS = [
+    'Empathy & Compassion',
+    'Honesty & Accountability',
+    'Safety & Responsibility',
+    'Emotional Stability',
+    'Respect & Boundaries',
+    'Commitment & Motivation',
+    'Ethical Dilemmas & Judgment',
+    'Real-Life Situations & Stress Handling',
+    'Open-Ended Reflection'
+  ];
+  
+  const sectionQuestions = SECTIONS.map(section => 
+    QUESTIONS.filter(q => q.section === section)
+  );
+  
+  const totalQuestions = QUESTIONS.length;
+  const answeredQuestions = Object.keys(answers).length;
+  const progress = (answeredQuestions / totalQuestions) * 100;
+  
+  // Check if all questions are answered
+  useEffect(() => {
+    const allAnswered = QUESTIONS.every(q => q.open || answers[q.key]);
+    setAllQuestionsAnswered(allAnswered);
+  }, [answers]);
 
   useEffect(() => {
     if (started && !submitted) {
@@ -143,159 +177,737 @@ const WalkerTestScreen = ({ navigation }) => {
     }
   };
 
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, [currentSection]);
+
+  const scrollToSection = (index) => {
+    setCurrentSection(index);
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({
+        x: width * index,
+        animated: true
+      });
+    }
+  };
+
   if (!started) {
     return (
-      <View style={styles.screen}>
-        <Text style={styles.title}>Walker Assessment Quiz</Text>
-        <Text style={styles.desc}>This quiz measures empathy, safety, honesty, ethical behavior and more—answer honestly. The test is 35 minutes. Please begin only when ready—once started, timer cannot be paused and answers are final.</Text>
-        <TouchableOpacity style={styles.startBtn} onPress={() => setStarted(true)}>
-          <Text style={styles.btnText}>Start Test</Text>
-        </TouchableOpacity>
-      </View>
+      <LinearGradient
+        colors={['#4F46E5', '#7C3AED']}
+        style={styles.screen}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <StatusBar barStyle="light-content" />
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.introContainer}>
+            <View style={styles.iconContainer}>
+              <MaterialIcons name="psychology" size={80} color="#FFFFFF" />
+            </View>
+            <Text style={styles.title}>Walker Assessment</Text>
+            <Text style={styles.subtitle}>Let's get to know you better</Text>
+            
+            <View style={styles.infoCard}>
+              <View style={styles.infoItem}>
+                <View style={styles.infoIcon}>
+                  <MaterialIcons name="timer" size={22} color="#4F46E5" />
+                </View>
+                <Text style={styles.infoText}>35 minutes</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <View style={styles.infoIcon}>
+                  <MaterialIcons name="help-outline" size={22} color="#4F46E5" />
+                </View>
+                <Text style={styles.infoText}>{QUESTIONS.length} questions</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <View style={styles.infoIcon}>
+                  <MaterialIcons name="info-outline" size={22} color="#4F46E5" />
+                </View>
+                <Text style={styles.infoText}>No time limit per question</Text>
+              </View>
+            </View>
+            
+            <Text style={styles.description}>
+              This assessment helps us understand your approach to various situations you might encounter as a walker. 
+              Please answer honestly as your responses will help us match you with compatible walking partners.
+            </Text>
+            
+            <TouchableOpacity 
+              style={styles.startButton}
+              onPress={() => setStarted(true)}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.startButtonText}>Begin Assessment</Text>
+              <MaterialIcons name="arrow-forward" size={20} color="#4F46E5" />
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
     );
   }
 
-  // Helper: get unique sections in order
-  const SECTIONS = [
-    'Empathy & Compassion',
-    'Honesty & Accountability',
-    'Safety & Responsibility',
-    'Emotional Stability',
-    'Respect & Boundaries',
-    'Commitment & Motivation',
-    'Ethical Dilemmas & Judgment',
-    'Real-Life Situations & Stress Handling',
-    'Open-Ended Reflection'
-  ];
+  // SECTIONS is already defined at the top of the component
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.contentWrap}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Walker Test</Text>
-        <View style={styles.timerContainer}>
-          <Text style={styles.timerText}>{Math.floor(remaining/60).toString().padStart(2,'0')}:{(remaining%60).toString().padStart(2,'0')}</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
+      <View style={styles.testContainer}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="arrow-back-ios" size={22} color="#4F46E5" />
+          </TouchableOpacity>
+          
+          <View style={styles.headerContent}>
+            <View style={styles.progressContainer}>
+              <View style={styles.progressTextContainer}>
+                <Text style={styles.progressText}>
+                  <Text style={styles.progressTextBold}>{answeredQuestions}</Text> / {totalQuestions} questions
+                </Text>
+                <Text style={styles.timerText}>
+                  <MaterialIcons name="timer" size={16} color="#6B7280" />
+                  {' '}{Math.floor(remaining/60).toString().padStart(2,'0')}:{(remaining%60).toString().padStart(2,'0')}
+                </Text>
+              </View>
+              <View style={styles.progressBar}>
+                <Animated.View 
+                  style={[
+                    styles.progressFill, 
+                    { 
+                      width: progress + '%',
+                      backgroundColor: progress < 50 ? '#4F46E5' : progress < 80 ? '#7C3AED' : '#10B981'
+                    }
+                  ]}
+                />
+              </View>
+            </View>
+          </View>
+          <View style={{ width: 40 }} />
         </View>
-      </View>
-      {SECTIONS.map(section => {
-        const questions = QUESTIONS.filter(q => q.section === section);
-        if (!questions.length) return null;
-        const sectionStyle = {
-          backgroundColor: '#FFFFFF', // Default white
+      
+      <ScrollView 
+        ref={scrollViewRef}
+        horizontal
+        pagingEnabled 
+        showsHorizontalScrollIndicator={false}
+        scrollEnabled={false}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {SECTIONS.map((section, sectionIndex) => {
+          const questions = sectionQuestions[sectionIndex];
+          if (!questions.length) return null;
+          
+          const sectionColors = {
+          'Empathy & Compassion': { 
+            bg: '#EEF2FF', 
+            border: '#4F46E5',
+            icon: 'favorite',
+            color: '#4F46E5'
+          },
+          'Honesty & Accountability': { 
+            bg: '#F5F3FF', 
+            border: '#7C3AED',
+            icon: 'gavel',
+            color: '#7C3AED'
+          },
+          'Safety & Responsibility': { 
+            bg: '#F0FDF4', 
+            border: '#10B981',
+            icon: 'shield',
+            color: '#10B981'
+          },
+          'Emotional Stability': { 
+            bg: '#EFF6FF', 
+            border: '#3B82F6',
+            icon: 'psychology',
+            color: '#3B82F6'
+          },
+          'Respect & Boundaries': { 
+            bg: '#FDF2F8', 
+            border: '#EC4899',
+            icon: 'handshake',
+            color: '#EC4899'
+          },
+          'Commitment & Motivation': { 
+            bg: '#FEF3C7', 
+            border: '#F59E0B',
+            icon: 'emoji-events',
+            color: '#D97706'
+          },
+          'Ethical Dilemmas & Judgment': { 
+            bg: '#F3E8FF', 
+            border: '#8B5CF6',
+            icon: 'balance',
+            color: '#8B5CF6'
+          },
+          'Real-Life Situations & Stress Handling': { 
+            bg: '#FEF3F2', 
+            border: '#EF4444',
+            icon: 'flash-on',
+            color: '#EF4444'
+          },
+          'Open-Ended Reflection': { 
+            bg: '#ECFDF5', 
+            border: '#10B981',
+            icon: 'edit-note',
+            color: '#10B981'
+          },
         };
-        if (section === 'Empathy & Compassion') sectionStyle.backgroundColor = '#D9DFF7';
-        if (section === 'Honesty & Accountability') sectionStyle.backgroundColor = '#F6E8E8';
-        if (section === 'Safety & Responsibility') sectionStyle.backgroundColor = '#E8F6E9';
-        if (section === 'Emotional Stability') sectionStyle.backgroundColor = '#E8F6F4';
-        if (section === 'Respect & Boundaries') sectionStyle.backgroundColor = '#F6E8E8';
-        if (section === 'Commitment & Motivation') sectionStyle.backgroundColor = '#E8F6E9';
-        if (section === 'Ethical Dilemmas & Judgment') sectionStyle.backgroundColor = '#D9DFF7';
-        if (section === 'Real-Life Situations & Stress Handling') sectionStyle.backgroundColor = '#F6E8E8';
-        if (section === 'Open-Ended Reflection') sectionStyle.backgroundColor = '#F8EDD9';
-
+        
+        const sectionColor = sectionColors[section] || { bg: '#FFFFFF', border: '#E2E8F0' };
+        
         return (
-          <View key={section} style={[styles.sectionCard, sectionStyle]}>
-            <Text style={styles.sectionHeader}>{section}</Text>
-            {questions.map((q, idx) => (
-              <View key={q.key} style={styles.qblock}>
-                <Text style={styles.qtext}>{(
-                  QUESTIONS.findIndex(q0 => q0.key === q.key) + 1
-                )}. {q.text}</Text>
-                {q.open ? (
-                  <TextInput
-                    value={answers[q.key] || ''}
-                    onChangeText={t => handleAnswer(q.key, t)}
-                    style={styles.openInput}
-                    multiline minHeight={70}
-                    placeholder="Type your answer here..."
-                    placeholderTextColor="#666"
-                  />
+          <Animated.View 
+            key={section} 
+            style={[
+              styles.sectionCard, 
+              { 
+                backgroundColor: '#FFFFFF',
+                borderTopWidth: 4,
+                borderTopColor: sectionColor.border,
+                opacity: fadeAnim,
+                transform: [{
+                  translateY: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                }],
+                shadowColor: sectionColor.border,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+                elevation: 3,
+              }
+            ]}
+          >
+            <View style={styles.sectionHeaderContainer}>
+              <View style={[styles.sectionIcon, { backgroundColor: `${sectionColor.color}15` }]}>
+                <MaterialIcons name={sectionColor.icon} size={24} color={sectionColor.color} />
+              </View>
+              <View>
+                <Text style={[styles.sectionHeader, { color: sectionColor.color }]}>{section}</Text>
+                <Text style={styles.sectionSubheader}>
+                  Section {sectionIndex + 1} of {SECTIONS.length} • {questions.length} question{questions.length > 1 ? 's' : ''}
+                </Text>
+              </View>
+            </View>
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {questions.map((q, qIndex) => (
+                <View key={q.key} style={styles.qblock}>
+                  <View style={styles.questionHeader}>
+                    <View style={[styles.questionNumber, { backgroundColor: `${sectionColor.color}20` }]}>
+                      <Text style={[styles.qnumber, { color: sectionColor.color }]}>{qIndex + 1}</Text>
+                    </View>
+                    <Text style={styles.qtext}>{q.text}</Text>
+                  </View>
+                  {q.options ? (
+                    q.options.map((opt, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        style={[
+                          styles.option,
+                          answers[q.key] === opt && [styles.optionSelected, { borderColor: sectionColor.color }]
+                        ]}
+                        onPress={() => handleAnswer(q.key, opt)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[
+                          styles.optionRadio, 
+                          answers[q.key] === opt && [styles.optionRadioSelected, { borderColor: sectionColor.color }]
+                        ]}>
+                          {answers[q.key] === opt && (
+                            <View style={[styles.optionRadioInner, { backgroundColor: sectionColor.color }]} />
+                          )}
+                        </View>
+                        <Text style={[
+                          styles.optionText,
+                          answers[q.key] === opt && [styles.optionTextSelected, { color: sectionColor.color }]
+                        ]}>
+                          {opt}
+                        </Text>
+                      </TouchableOpacity>
+                    ))
+                  ) : (
+                    <View style={styles.textInputContainer}>
+                      <TextInput
+                        style={styles.textInput}
+                        multiline
+                        placeholder="Type your answer here..."
+                        placeholderTextColor="#A0AEC0"
+                        value={answers[q.key] || ''}
+                        onChangeText={(text) => handleAnswer(q.key, text)}
+                      />
+                    </View>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+            
+            <View style={styles.navigationContainer}>
+              <View style={styles.navButtonsWrapper}>
+                <TouchableOpacity 
+                  style={[
+                    styles.navButton, 
+                    styles.navButtonPrev,
+                    sectionIndex === 0 && { opacity: 0.5, backgroundColor: '#F3F4F6' }
+                  ]} 
+                  onPress={() => scrollToSection(sectionIndex - 1)}
+                  disabled={sectionIndex === 0}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons name="arrow-back-ios" size={16} color={sectionIndex === 0 ? '#9CA3AF' : '#4F46E5'} />
+                  <Text style={[styles.navButtonText, sectionIndex === 0 && { color: '#9CA3AF' }]}>
+                    Previous
+                  </Text>
+                </TouchableOpacity>
+                
+                {sectionIndex < SECTIONS.length - 1 ? (
+                  <TouchableOpacity 
+                    style={[styles.navButton, styles.navButtonNext]}
+                    onPress={() => scrollToSection(sectionIndex + 1)}
+                    activeOpacity={0.9}
+                  >
+                    <Text style={styles.navButtonNextText}>Next Section</Text>
+                    <MaterialIcons name="arrow-forward-ios" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
                 ) : (
-                  q.options.map(opt => (
-                    <TouchableOpacity
-                      key={opt}
-                      style={[styles.optBtn, answers[q.key] === opt && styles.optBtnSelected]}
-                      onPress={() => handleAnswer(q.key, opt)}
-                      disabled={isSubmitting || submitted}
-                    >
-                      <Text style={answers[q.key] === opt ? styles.optTxtSelected : styles.optTxt}>{opt}</Text>
-                    </TouchableOpacity>
-                  ))
+                  <TouchableOpacity 
+                    style={[
+                      styles.submitButton, 
+                      isSubmitting && { opacity: 0.7 },
+                      !allQuestionsAnswered && { backgroundColor: '#9CA3AF' }
+                    ]}
+                    onPress={handleSubmit}
+                    disabled={isSubmitting || !allQuestionsAnswered}
+                    activeOpacity={0.9}
+                  >
+                    <Text style={styles.submitButtonText}>
+                      {isSubmitting ? 'Submitting...' : 'Submit Assessment'}
+                    </Text>
+                    <MaterialIcons name="check-circle" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                  </TouchableOpacity>
                 )}
               </View>
-            ))}
-          </View>
+              
+              {sectionIndex < SECTIONS.length - 1 && (
+                <TouchableOpacity 
+                  style={styles.skipSection}
+                  onPress={() => scrollToSection(sectionIndex + 1)}
+                >
+                  <Text style={styles.skipText}>Skip this section</Text>
+                  <MaterialIcons name="arrow-forward" size={16} color="#6B7280" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </Animated.View>
         );
-      })}
-      <TouchableOpacity
-        style={[styles.submitBtn, (isSubmitting || submitted)]}
-        onPress={() => handleSubmit()}
-        disabled={isSubmitting || submitted}
-      >
-        <Text style={styles.btnText}>{isSubmitting ? 'Submitting...' : 'Submit Test'}</Text>
-      </TouchableOpacity>
-      {submitted && <Text style={styles.submitNote}>Test submitted! You may now close the app. Await admin review.</Text>}
-    </ScrollView>
+        })}
+        {submitted && <Text style={styles.submitNote}>Test submitted! You may now close the app. Await admin review.</Text>}
+      </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
   screen: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
-  contentWrap: { padding: 20, paddingBottom: 50 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  introContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#0092DF',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    padding: 24,
+  },
+  iconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 8,
+    fontFamily: 'Inter-Bold',
+  },
+  subtitle: {
+    fontSize: 18,
+    color: '#E0E7FF',
+    textAlign: 'center',
+    marginBottom: 32,
+    fontFamily: 'Inter-Medium',
+  },
+  infoCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    marginBottom: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  infoIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  infoText: {
+    fontSize: 15,
+    color: '#4B5563',
+    fontFamily: 'Inter-Medium',
+  },
+  description: {
+    fontSize: 16,
+    color: '#E0E7FF',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 24,
+    fontFamily: 'Inter-Regular',
+  },
+  startButton: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  startButtonText: {
+    color: '#4F46E5',
+    fontSize: 18,
+    fontWeight: '700',
+    marginRight: 8,
+    fontFamily: 'Inter-SemiBold',
+  },
+  testContainer: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  header: {
+    backgroundColor: '#FFFFFF',
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
   },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: 24,
-    fontWeight: 'bold',
+  headerContent: {
+    flex: 1,
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  progressContainer: {
+    flex: 1,
+  },
+  progressTextContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  progressText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontFamily: 'Inter-Medium',
+  },
+  progressTextBold: {
+    fontWeight: '700',
+    color: '#111827',
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
   },
   timerContainer: {
-    backgroundColor: '#FFF',
-    borderRadius: 15,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: '#FFF',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   timerText: {
-    color: '#0092DF',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 13,
+    color: '#6B7280',
+    marginLeft: 4,
+    fontFamily: 'Inter-Medium',
   },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 8, marginTop: 50, color: '#000', textAlign:'center' },
-  desc: { fontSize: 16, color: '#444', textAlign:'center', marginVertical: 20 },
-  startBtn: { backgroundColor: '#000', borderRadius: 30, paddingVertical: 18, alignItems: 'center', marginTop: 50 },
-  btnText: { color: '#FFF', fontWeight: '700', fontSize: 18 },
-  time: { fontSize: 18, textAlign:'center', marginVertical: 14, fontWeight:'700', color:'#C92D2D' },
+  sectionScroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingVertical: 16,
+  },
   sectionCard: {
-    marginBottom: 34, backgroundColor: '#F0F8FF', borderRadius: 22, padding: 16, borderWidth:1, borderColor: '#D9D9D9',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1}, shadowOpacity: 0.07, shadowRadius: 8, elevation:2
+    width: width - 32,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    marginBottom: 16,
   },
-  sectionHeader: { fontSize: 20, color: '#000', fontWeight: 'bold', marginBottom: 18, textAlign:'left', letterSpacing: 0.2 },
-  qblock: { marginBottom: 23, borderRadius:18, backgroundColor:'#FFFFFF', padding:12, borderWidth:1, borderColor:'#D9D9D9' },
-  qtext: { fontSize: 16, color:'#222', marginBottom: 10, fontWeight:'500' },
-  optBtn: { paddingVertical: 12, paddingHorizontal: 15, backgroundColor:'#D9D9D9', borderRadius:19, marginBottom: 9, marginTop:3 },
-  optBtnSelected: { backgroundColor:'#4CAF50' },
-  optTxt: { fontSize: 15, color: '#333' },
-  optTxtSelected: { color:'#FFF', fontWeight:'bold', fontSize:16 },
-  openInput: { backgroundColor: '#F0F8FF', borderRadius:14, padding:13, fontSize:15, marginBottom: 3, borderWidth:1, borderColor:'#D9D9D9', color:'#111' },
-  submitBtn: { backgroundColor:'#000', borderRadius:30, alignItems:'center', paddingVertical: 17, marginTop:13, marginBottom: 36, opacity: 1 },
-  submitNote: { color: '#008900', textAlign:'center', marginVertical: 22, fontWeight:'bold', fontSize: 16 },
+  sectionHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  sectionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  sectionHeader: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+    fontFamily: 'Inter-Bold',
+  },
+  sectionSubheader: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontFamily: 'Inter-Medium',
+  },
+  questionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  questionNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    marginTop: 2,
+  },
+  qnumber: {
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'Inter-Bold',
+  },
+  qtext: {
+    flex: 1,
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#1F2937',
+    fontFamily: 'Inter-SemiBold',
+  },
+  qblock: {
+    marginBottom: 24,
+  },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  optionSelected: {
+    backgroundColor: '#F8FAFF',
+    borderWidth: 1.5,
+  },
+  optionRadio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    marginRight: 14,
+    marginTop: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  optionRadioSelected: {
+    borderWidth: 1.5,
+  },
+  optionRadioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  optionText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#4B5563',
+    fontFamily: 'Inter-Regular',
+  },
+  optionTextSelected: {
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+  },
+  textInputContainer: {
+    marginTop: 12,
+  },
+  textInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+    minHeight: 120,
+    textAlignVertical: 'top',
+    fontSize: 15,
+    color: '#1F2937',
+    fontFamily: 'Inter-Regular',
+    lineHeight: 22,
+  },
+  navigationContainer: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  navButtonsWrapper: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  navButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    minWidth: 140,
+  },
+  navButtonPrev: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  navButtonNext: {
+    backgroundColor: '#4F46E5',
+    flex: 1,
+    marginLeft: 12,
+  },
+  navButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginHorizontal: 6,
+    color: '#4F46E5',
+    fontFamily: 'Inter-SemiBold',
+  },
+  navButtonNextText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    marginRight: 6,
+    fontFamily: 'Inter-SemiBold',
+  },
+  skipSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+  },
+  skipText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginRight: 4,
+    fontFamily: 'Inter-Medium',
+  },
+  submitButton: {
+    backgroundColor: '#10B981',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+  },
+  submitNote: {
+    margin: 20,
+    padding: 16,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#10B981',
+  },
 });
 
 export default WalkerTestScreen;

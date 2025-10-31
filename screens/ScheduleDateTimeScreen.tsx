@@ -65,7 +65,7 @@ const ScheduleDateTimeScreen: React.FC<ScheduleDateTimeScreenProps> = ({ navigat
   }, []);
 
   const reminderOptions = ['None', '5 min before', '15 min before', '30 min before'];
-  const preferenceOptions = ['Solo', 'Group', 'Pet'];
+  const preferenceOptions = ['Solo', 'Pet'];
   const recurrenceOptions = ['None', 'Daily', 'Weekly'];
 
   const handleChooseWalker = () => {

@@ -1472,7 +1472,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   drawerItem: {
-    marginBottom: 12,
+    marginBottom: 20,
+    paddingVertical: 8,
   },
   drawerText: {
     fontSize: 16,
@@ -1482,11 +1483,12 @@ const styles = StyleSheet.create({
   drawerScrollView: {
   },
   drawerContentContainer: {
-    paddingBottom: 10,
+    paddingBottom: 30,
+    paddingTop: 10,
   },
   logoutContainer: {
-    paddingTop: 8,
-    marginTop: 8,
+    paddingTop: 30,
+    marginTop: 50,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.15)'
   },
