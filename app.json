@@ -25,17 +25,19 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "INTERNET"
       ],
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyAAn7WMlGaRR7Si4cf5SCZE91kNOUuxBrQ"
+          "apiKey": "AIzaSyDiqlVKR3WYCVcPr-IIbO0ockUiPfAnnSY"
         }
-      }
+      },
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "favicon": "./assets/favicon.png"

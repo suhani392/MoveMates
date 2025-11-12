@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
@@ -94,25 +94,17 @@ const FamilyDashboardScreen: React.FC<FamilyDashboardScreenProps> = ({ navigatio
         {currentLocation ? (
           <MapView
             ref={mapRef}
+            provider={PROVIDER_GOOGLE}
             style={styles.map}
             initialRegion={{
-              latitude: currentLocation?.latitude || 20.5937,
-              longitude: currentLocation?.longitude || 78.9629,
-              latitudeDelta: 0.0922,
-              longitudeDelta: 0.0421,
+              latitude: currentLocation.latitude,
+              longitude: currentLocation.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
             }}
             showsUserLocation={false}
             showsMyLocationButton={false}
-            followsUserLocation={false}
-            toolbarEnabled={false}
-            provider={null}
-            mapType="none"
           >
-            <UrlTile
-              urlTemplate="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              maximumZ={19}
-              flipY={false}
-            />
             {/* Route Path */}
             {routePath.length > 1 && (
               <Polyline

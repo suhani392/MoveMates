@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import MapView, { Marker, UrlTile } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -318,27 +318,25 @@ const SuggestiveWalkScreen: React.FC<SuggestiveWalkScreenProps> = ({ navigation 
 
   return (
     <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
+      {/* Map */}
       <MapView
         ref={mapRef}
         style={styles.map}
         initialRegion={{
           latitude: currentLocation?.latitude ?? 20.5937,
           longitude: currentLocation?.longitude ?? 78.9629,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
         }}
         showsUserLocation={true}
         showsMyLocationButton={false}
         followsUserLocation={true}
         toolbarEnabled={false}
-        provider={null}
-        mapType="none"
+        showsCompass={false}
       >
-        <UrlTile
-          urlTemplate="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maximumZ={19}
-          flipY={false}
-        />
+        {meetingPointCoord && (
+          <Marker coordinate={meetingPointCoord} title="Meeting Point" />
+        )}
       </MapView>
 
       {/* Header with black 60% opacity */}
