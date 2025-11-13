@@ -3,6 +3,7 @@
     "name": "MoveMates",
     "slug": "MoveMates",
     "version": "1.0.0",
+    "assetBundlePatterns": ["**/*"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
