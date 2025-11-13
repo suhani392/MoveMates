@@ -58,22 +58,21 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
       console.log('=== DEBUGGING WALK REQUESTS ===');
       console.log('Walker UID:', user.uid);
       
-      // 1. Check all walk requests in the database
-      const allRequestsSnapshot = await getDocs(collection(db, 'walkRequests'));
-      console.log(`Total walk requests in database: ${allRequestsSnapshot.docs.length}`);
+      // 1. Check walk requests assigned to this walker
+      const walkerQuery = query(
+        collection(db, 'walkRequests'),
+        where('walkerId', '==', user.uid)
+      );
+      const walkerSnapshot = await getDocs(walkerQuery);
+      console.log(`Found ${walkerSnapshot.docs.length} requests for this walker`);
+
+      const walkerRequests = walkerSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        _exists: true
+      }));
       
-      // 2. Check requests specifically for this walker
-      const walkerRequests = allRequestsSnapshot.docs
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          _exists: true
-        }))
-        .filter((req: any) => req.walkerId === user.uid);
-      
-      console.log(`Found ${walkerRequests.length} requests for this walker`);
-      
-      // 3. Log details of each request
+      // Log details of each request
       walkerRequests.forEach((req: any) => {
         console.log(`\n--- Request ${req.id} ---`);
         console.log('Status:', req.status);
@@ -84,12 +83,12 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
         console.log('All fields:', Object.keys(req));
       });
       
-      // 4. Check if any requests are pending but not showing up
+      // Check if any requests are pending but not showing up
       const pendingRequests = walkerRequests.filter((req: any) => req.status === 'pending');
       console.log(`\nFound ${pendingRequests.length} PENDING requests`);
       
       return {
-        totalRequests: allRequestsSnapshot.docs.length,
+        totalRequests: walkerSnapshot.docs.length,
         walkerRequests: walkerRequests.length,
         pendingRequests: pendingRequests.length,
         requests: walkerRequests

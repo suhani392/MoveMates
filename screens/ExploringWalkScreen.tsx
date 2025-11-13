@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapLibreGL, { CameraRef } from '@maplibre/maplibre-react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -20,6 +20,15 @@ import { db, auth } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import {
+  MAP_DEFAULT_CENTER,
+  MAP_DEFAULT_ZOOM,
+  MAP_STYLE_URL,
+  isMapLibreSupported,
+  toPosition,
+  type LatLng,
+} from '../utils/mapLibre';
+import MapFallback from '../components/MapFallback';
 
 type ExploringWalkScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -38,27 +47,22 @@ const ExploringWalkScreen: React.FC<ExploringWalkScreenProps> = ({ navigation })
   const { t } = useLanguage();
 
   const [meetingPoint, setMeetingPoint] = useState('');
-  const [meetingPointCoord, setMeetingPointCoord] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
+  const [meetingPointCoord, setMeetingPointCoord] = useState<LatLng | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
   const [customDuration, setCustomDuration] = useState('');
   const [placeType, setPlaceType] = useState('');
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<LatLng | null>(null);
   const [currentAddress, setCurrentAddress] = useState('');
   const [locationPermission, setLocationPermission] = useState(false);
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [recentLocations, setRecentLocations] = useState<string[]>([]);
-  const mapRef = useRef<MapView>(null);
+  const cameraRef = useRef<CameraRef | null>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const durationPresets = [15, 30, 60];
+  const defaultCameraCenter = currentLocation ?? MAP_DEFAULT_CENTER;
 
   // Request location permission and get current location
   useEffect(() => {
@@ -81,17 +85,11 @@ const ExploringWalkScreen: React.FC<ExploringWalkScreenProps> = ({ navigation })
 
       setCurrentLocation(coords);
 
-      if (mapRef.current) {
-        mapRef.current.animateToRegion(
-          {
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          },
-          1000
-        );
-      }
+      cameraRef.current?.setCamera({
+        centerCoordinate: toPosition(coords),
+        zoomLevel: 14,
+        animationDuration: 1000,
+      });
 
       const address = await reverseGeocode(coords.latitude, coords.longitude);
       setCurrentAddress(address);
@@ -232,17 +230,11 @@ const ExploringWalkScreen: React.FC<ExploringWalkScreenProps> = ({ navigation })
 
     if (coords) {
       setMeetingPointCoord(coords);
-      if (mapRef.current) {
-        mapRef.current.animateToRegion(
-          {
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          },
-          500
-        );
-      }
+      cameraRef.current?.setCamera({
+        centerCoordinate: toPosition(coords),
+        zoomLevel: 15,
+        animationDuration: 500,
+      });
     }
   };
 
@@ -252,35 +244,25 @@ const ExploringWalkScreen: React.FC<ExploringWalkScreenProps> = ({ navigation })
       setShowSuggestions(false);
       if (currentLocation) {
         setMeetingPointCoord(currentLocation);
-        if (mapRef.current) {
-          mapRef.current.animateToRegion(
-            {
-              latitude: currentLocation.latitude,
-              longitude: currentLocation.longitude,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            },
-            500
-          );
-        }
+        cameraRef.current?.setCamera({
+          centerCoordinate: toPosition(currentLocation),
+          zoomLevel: 15,
+          animationDuration: 500,
+        });
       }
     }
   };
 
   const recenterToUser = () => {
-    if (!currentLocation || !mapRef.current) {
+    if (!currentLocation || !cameraRef.current) {
       Alert.alert('Location Unavailable', 'Enable location services to use this feature.');
       return;
     }
-    mapRef.current.animateToRegion(
-      {
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      },
-      500
-    );
+    cameraRef.current.setCamera({
+      centerCoordinate: toPosition(currentLocation),
+      zoomLevel: 15,
+      animationDuration: 500,
+    });
   };
 
   const handleContinue = () => {
@@ -312,25 +294,38 @@ const ExploringWalkScreen: React.FC<ExploringWalkScreenProps> = ({ navigation })
   return (
     <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
       {/* Map */}
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={{
-          latitude: currentLocation?.latitude ?? 20.5937,
-          longitude: currentLocation?.longitude ?? 78.9629,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
-        showsUserLocation={true}
-        showsMyLocationButton={false}
-        followsUserLocation={true}
-        toolbarEnabled={false}
-        showsCompass={false}
-      >
-        {meetingPointCoord && (
-          <Marker coordinate={meetingPointCoord} title="Meeting Point" />
-        )}
-      </MapView>
+      {isMapLibreSupported ? (
+        <MapLibreGL.MapView
+          style={styles.map}
+          mapStyle={MAP_STYLE_URL}
+          compassEnabled={false}
+          attributionEnabled={false}
+          logoEnabled={false}
+        >
+          <MapLibreGL.Camera
+            ref={cameraRef}
+            defaultSettings={{
+              centerCoordinate: toPosition(defaultCameraCenter),
+              zoomLevel: MAP_DEFAULT_ZOOM,
+            }}
+          />
+          <MapLibreGL.UserLocation visible />
+          {meetingPointCoord && (
+            <MapLibreGL.PointAnnotation
+              id="exploring-meeting"
+              coordinate={toPosition(meetingPointCoord)}
+            >
+              <View style={styles.markerContainer}>
+                <MaterialIcons name="place" size={18} color="#FFFFFF" />
+              </View>
+            </MapLibreGL.PointAnnotation>
+          )}
+        </MapLibreGL.MapView>
+      ) : (
+        <View style={styles.map}>
+          <MapFallback />
+        </View>
+      )}
 
       {/* Header with black 60% opacity */}
       <View style={styles.header}>
@@ -506,6 +501,16 @@ const styles = StyleSheet.create({
   map: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 0,
+  },
+  markerContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#1E88E5',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

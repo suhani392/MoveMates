@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
+import MapLibreGL from '@maplibre/maplibre-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -25,6 +26,26 @@ import HelpPolicyScreen from './screens/HelpPolicyScreen';
 import WalkerTestScreen from './screens/WalkerTestScreen';
 import { db, auth } from './firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+
+const isMapLibreAvailable =
+  MapLibreGL &&
+  typeof MapLibreGL.setAccessToken === 'function' &&
+  typeof MapLibreGL.setConnected === 'function';
+
+if (isMapLibreAvailable) {
+  MapLibreGL.setAccessToken(null).catch((error) =>
+    console.warn('MapLibreGL.setAccessToken failed', error)
+  );
+  try {
+    MapLibreGL.setConnected(true);
+  } catch (error) {
+    console.warn('MapLibreGL.setConnected failed', error);
+  }
+} else {
+  console.warn(
+    'MapLibre native module is unavailable. Maps will not render in this environment (Expo Go).'
+  );
+}
 
 export type RootStackParamList = {
   Splash: undefined;

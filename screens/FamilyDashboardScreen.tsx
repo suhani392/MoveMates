@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,22 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapLibreGL, { CameraRef } from '@maplibre/maplibre-react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import {
+  MAP_DEFAULT_CENTER,
+  MAP_DEFAULT_ZOOM,
+  MAP_STYLE_URL,
+  buildLineStringFeatureCollection,
+  isMapLibreSupported,
+  toPosition,
+  type LatLng,
+} from '../utils/mapLibre';
+import MapFallback from '../components/MapFallback';
 
 type FamilyDashboardScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -28,7 +38,24 @@ const FamilyDashboardScreen: React.FC<FamilyDashboardScreenProps> = ({ navigatio
   const { requestId, userName } = route.params;
   const [currentLocation, setCurrentLocation] = useState<LocationData | null>(null);
   const [routePath, setRoutePath] = useState<LocationData[]>([]);
-  const mapRef = useRef<MapView>(null);
+  const cameraRef = useRef<CameraRef | null>(null);
+  const defaultCameraCenter: LatLng = currentLocation ?? MAP_DEFAULT_CENTER;
+  const routeShape = useMemo(
+    () =>
+      buildLineStringFeatureCollection(
+        routePath.map(({ latitude, longitude }) => ({ latitude, longitude }))
+      ),
+    [routePath]
+  );
+  const routeLineStyle = useMemo(
+    () => ({
+      lineColor: '#5B21B6',
+      lineWidth: 4,
+      lineCap: 'round' as const,
+      lineJoin: 'round' as const,
+    }),
+    []
+  );
 
   useEffect(() => {
     // Listen to real-time location updates from Firestore
@@ -51,14 +78,11 @@ const FamilyDashboardScreen: React.FC<FamilyDashboardScreenProps> = ({ navigatio
           setRoutePath((prev) => [...prev, newLocation]);
           
           // Center map on new location
-          if (mapRef.current) {
-            mapRef.current.animateToRegion({
-              latitude: newLocation.latitude,
-              longitude: newLocation.longitude,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            }, 1000);
-          }
+          cameraRef.current?.setCamera({
+            centerCoordinate: toPosition(newLocation),
+            zoomLevel: 15,
+            animationDuration: 1000,
+          });
         }
 
         // Check if walk has ended
@@ -91,50 +115,44 @@ const FamilyDashboardScreen: React.FC<FamilyDashboardScreenProps> = ({ navigatio
     <View style={styles.container}>
       {/* Map */}
       <View style={styles.mapContainer}>
-        {currentLocation ? (
-          <MapView
-            ref={mapRef}
-            provider={PROVIDER_GOOGLE}
-            style={styles.map}
-            initialRegion={{
-              latitude: currentLocation.latitude,
-              longitude: currentLocation.longitude,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            }}
-            showsUserLocation={false}
-            showsMyLocationButton={false}
-          >
-            {/* Route Path */}
-            {routePath.length > 1 && (
-              <Polyline
-                coordinates={routePath.map(loc => ({
-                  latitude: loc.latitude,
-                  longitude: loc.longitude,
-                }))}
-                strokeColor="#5B21B6"
-                strokeWidth={4}
-              />
-            )}
-
-            {/* Current Location Marker */}
-            <Marker
-              coordinate={{
-                latitude: currentLocation.latitude,
-                longitude: currentLocation.longitude,
-              }}
-              title={`${userName}'s Location`}
-              description="Current location"
+        {isMapLibreSupported ? (
+          currentLocation ? (
+            <MapLibreGL.MapView
+              style={styles.map}
+              mapStyle={MAP_STYLE_URL}
+              compassEnabled={false}
+              attributionEnabled={false}
+              logoEnabled={false}
             >
-              <View style={styles.markerContainer}>
-                <MaterialIcons name="person-pin-circle" size={40} color="#E53E3E" />
-              </View>
-            </Marker>
-          </MapView>
+              <MapLibreGL.Camera
+                ref={cameraRef}
+                defaultSettings={{
+                  centerCoordinate: toPosition(defaultCameraCenter),
+                  zoomLevel: MAP_DEFAULT_ZOOM,
+                }}
+              />
+              {routeShape && (
+                <MapLibreGL.ShapeSource id="family-route" shape={routeShape}>
+                  <MapLibreGL.LineLayer id="family-route-line" style={routeLineStyle} />
+                </MapLibreGL.ShapeSource>
+              )}
+              <MapLibreGL.PointAnnotation
+                id="family-current-location"
+                coordinate={toPosition(currentLocation)}
+                title={`${userName}'s Location`}
+              >
+                <View style={styles.currentLocationMarker}>
+                  <MaterialIcons name="person-pin-circle" size={32} color="#FFFFFF" />
+                </View>
+              </MapLibreGL.PointAnnotation>
+            </MapLibreGL.MapView>
+          ) : (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading location...</Text>
+            </View>
+          )
         ) : (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading location...</Text>
-          </View>
+          <MapFallback message="Map preview is unavailable in Expo Go. Install the MoveMates dev build or production app to track walks." />
         )}
       </View>
 
@@ -214,9 +232,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666666',
   },
-  markerContainer: {
+  currentLocationMarker: {
     alignItems: 'center',
     justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E53E3E',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   bottomCard: {
     position: 'absolute',

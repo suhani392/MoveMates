@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapLibreGL, { CameraRef } from '@maplibre/maplibre-react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
@@ -25,6 +25,17 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { authService } from '../services/authService';
 import { useToast } from '../contexts/ToastContext';
+import {
+  MAP_DEFAULT_CENTER,
+  MAP_DEFAULT_ZOOM,
+  MAP_STYLE_URL,
+  buildLineStringFeatureCollection,
+  calculateBounds,
+  isMapLibreSupported,
+  toPosition,
+  type LatLng,
+} from '../utils/mapLibre';
+import MapFallback from '../components/MapFallback';
 
 type WandererHomeScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -47,10 +58,7 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   const [destination, setDestination] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<LatLng | null>(null);
   const [currentAddress, setCurrentAddress] = useState('');
   const [locationPermission, setLocationPermission] = useState(false);
   const [pickupSuggestions, setPickupSuggestions] = useState<LocationSuggestion[]>([]);
@@ -58,16 +66,30 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
   const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
   const [recentLocations, setRecentLocations] = useState<string[]>([]);
-  const mapRef = useRef<MapView>(null);
-  const [pickupCoord, setPickupCoord] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [destinationCoord, setDestinationCoord] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [routeCoords, setRouteCoords] = useState<Array<{ latitude: number; longitude: number }>>([]);
+  const cameraRef = useRef<CameraRef | null>(null);
+  const [pickupCoord, setPickupCoord] = useState<LatLng | null>(null);
+  const [destinationCoord, setDestinationCoord] = useState<LatLng | null>(null);
+  const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
   const [directionsLoading, setDirectionsLoading] = useState(false);
   const enableRoutingStep = true;
   const pickupDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const destDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
+  const routeShape = useMemo(
+    () => buildLineStringFeatureCollection(routeCoords),
+    [routeCoords]
+  );
+  const routeLineStyle = useMemo(
+    () => ({
+      lineColor: '#1E88E5',
+      lineWidth: 4,
+      lineCap: 'round' as const,
+      lineJoin: 'round' as const,
+    }),
+    []
+  );
+  const defaultCameraCenter = currentLocation ?? MAP_DEFAULT_CENTER;
 
   // When both coordinates are available, auto-fetch route (step is enabled)
   useEffect(() => {
@@ -103,17 +125,11 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
       setCurrentLocation(coords);
 
       // Center map on user's location
-      if (mapRef.current) {
-        mapRef.current.animateToRegion(
-          {
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          },
-          1000
-        );
-      }
+      cameraRef.current?.setCamera({
+        centerCoordinate: toPosition(coords),
+        zoomLevel: 14,
+        animationDuration: 1000,
+      });
 
       // Get address from coordinates
       const address = await reverseGeocode(coords.latitude, coords.longitude);
@@ -132,19 +148,15 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
 
   // Recenter map to user location and optionally set pickup
   const recenterToUser = () => {
-    if (!currentLocation || !mapRef.current) {
+    if (!currentLocation || !cameraRef.current) {
       Alert.alert('Location Unavailable', 'Enable location services to use this feature.');
       return;
     }
-    mapRef.current.animateToRegion(
-      {
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      },
-      500
-    );
+    cameraRef.current.setCamera({
+      centerCoordinate: toPosition(currentLocation),
+      zoomLevel: 15,
+      animationDuration: 500,
+    });
     if (!pickupCoord) {
       setPickupCoord(currentLocation);
       if (destinationCoord && enableRoutingStep) {
@@ -169,9 +181,9 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
     throw new Error('no geocode');
   };
 
-  const decodePolyline = (encoded: string): Array<{ latitude: number; longitude: number }> => {
+  const decodePolyline = (encoded: string): LatLng[] => {
     let index = 0, lat = 0, lng = 0;
-    const coordinates: Array<{ latitude: number; longitude: number }> = [];
+    const coordinates: LatLng[] = [];
     while (index < encoded.length) {
       let b = 0, shift = 0, result = 0;
       do {
@@ -196,22 +208,31 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   };
 
   const fitMapToPoints = (
-    a: { latitude: number; longitude: number },
-    b: { latitude: number; longitude: number },
-    path: Array<{ latitude: number; longitude: number }> = []
+    origin?: LatLng | null,
+    destination?: LatLng | null,
+    path: LatLng[] = []
   ) => {
-    const points = path.length > 1 ? path : [a, b];
-    if (mapRef.current && points.length) {
-      mapRef.current.fitToCoordinates(points, {
-        edgePadding: { top: 80, bottom: 360, left: 40, right: 40 },
-        animated: true,
-      });
+    const coords: LatLng[] =
+      path.length > 1
+        ? path
+        : ([origin, destination].filter(Boolean) as LatLng[]);
+
+    if (!coords.length || !cameraRef.current) {
+      return;
     }
+
+    const bounds = calculateBounds(coords);
+    if (!bounds) {
+      return;
+    }
+
+    const padding: number[] = [80, 40, 360, 40];
+    cameraRef.current.fitBounds(bounds.northEast, bounds.southWest, padding, 1000);
   };
 
   const fetchRoute = async (
-    origin: { latitude: number; longitude: number },
-    dest: { latitude: number; longitude: number }
+    origin: LatLng,
+    dest: LatLng
   ) => {
     setDirectionsLoading(true);
     try {
@@ -510,16 +531,28 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
       coords = null;
     }
     if (coords) {
-      if (isPickup) setPickupCoord(coords); else setDestinationCoord(coords);
-      fitMapToPoints(isPickup ? coords : (pickupCoord || coords), isPickup ? (destinationCoord || coords) : coords);
-      const origin = isPickup ? coords : pickupCoord;
-      let dest = isPickup ? destinationCoord : coords;
-      // If user selected destination first and pickup is empty, default pickup to current location
-      if (!isPickup && !pickupCoord && currentLocation) {
-        setPickupCoord(currentLocation);
+      let nextPickup: LatLng | null = pickupCoord;
+      let nextDestination: LatLng | null = destinationCoord;
+
+      if (isPickup) {
+        nextPickup = coords;
+        setPickupCoord(coords);
+      } else {
+        nextDestination = coords;
+        setDestinationCoord(coords);
+        if (!pickupCoord && currentLocation) {
+          nextPickup = currentLocation;
+          setPickupCoord(currentLocation);
+        }
       }
-      if (enableRoutingStep && origin && dest) {
-        await fetchRoute(origin, dest);
+
+      const fallbackPickup = nextPickup ?? coords;
+      const fallbackDestination = nextDestination ?? coords;
+
+      fitMapToPoints(fallbackPickup, fallbackDestination);
+
+      if (enableRoutingStep && nextPickup && nextDestination) {
+        await fetchRoute(nextPickup, nextDestination);
       }
     }
   };
@@ -578,31 +611,53 @@ const WandererHomeScreen: React.FC<WandererHomeScreenProps> = ({ navigation }) =
   return (
     <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
       {/* Map */}
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={{
-          latitude: currentLocation?.latitude ?? 20.5937,
-          longitude: currentLocation?.longitude ?? 78.9629,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
-        showsUserLocation={true}
-        showsMyLocationButton={false}
-        followsUserLocation={true}
-        toolbarEnabled={false}
-        showsCompass={false}
-      >
-        {pickupCoord && (
-          <Marker coordinate={pickupCoord} title="Pickup" />
-        )}
-        {destinationCoord && (
-          <Marker coordinate={destinationCoord} title="Destination" />
-        )}
-        {routeCoords.length > 1 && (
-          <Polyline coordinates={routeCoords} strokeColor="#1E88E5" strokeWidth={4} />
-        )}
-      </MapView>
+      {isMapLibreSupported ? (
+        <MapLibreGL.MapView
+          style={styles.map}
+          mapStyle={MAP_STYLE_URL}
+          compassEnabled={false}
+          attributionEnabled={false}
+          logoEnabled={false}
+        >
+          <MapLibreGL.Camera
+            ref={cameraRef}
+            defaultSettings={{
+              centerCoordinate: toPosition(defaultCameraCenter),
+              zoomLevel: MAP_DEFAULT_ZOOM,
+            }}
+          />
+          <MapLibreGL.UserLocation visible />
+          {pickupCoord && (
+            <MapLibreGL.PointAnnotation
+              id="wanderer-pickup"
+              coordinate={toPosition(pickupCoord)}
+            >
+              <View style={[styles.markerContainer, styles.pickupMarker]}>
+                <MaterialIcons name="my-location" size={18} color="#FFFFFF" />
+              </View>
+            </MapLibreGL.PointAnnotation>
+          )}
+          {destinationCoord && (
+            <MapLibreGL.PointAnnotation
+              id="wanderer-destination"
+              coordinate={toPosition(destinationCoord)}
+            >
+              <View style={[styles.markerContainer, styles.destinationMarker]}>
+                <MaterialIcons name="flag" size={18} color="#FFFFFF" />
+              </View>
+            </MapLibreGL.PointAnnotation>
+          )}
+          {routeShape && (
+            <MapLibreGL.ShapeSource id="wanderer-route" shape={routeShape}>
+              <MapLibreGL.LineLayer id="wanderer-route-line" style={routeLineStyle} />
+            </MapLibreGL.ShapeSource>
+          )}
+        </MapLibreGL.MapView>
+      ) : (
+        <View style={styles.map}>
+          <MapFallback />
+        </View>
+      )}
 
       {/* Header */}
       <View style={styles.header}>
@@ -898,6 +953,22 @@ const styles = StyleSheet.create({
   map: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 0,
+  },
+  markerContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#1E88E5',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickupMarker: {
+    backgroundColor: '#1E88E5',
+  },
+  destinationMarker: {
+    backgroundColor: '#EF5350',
   },
   header: {
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

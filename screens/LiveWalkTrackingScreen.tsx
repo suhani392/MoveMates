@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,23 @@ import {
   TextInput,
   Clipboard,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapLibreGL, { CameraRef } from '@maplibre/maplibre-react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { doc, updateDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import {
+  MAP_DEFAULT_CENTER,
+  MAP_DEFAULT_ZOOM,
+  MAP_STYLE_URL,
+  buildLineStringFeatureCollection,
+  isMapLibreSupported,
+  toPosition,
+  type LatLng,
+} from '../utils/mapLibre';
+import MapFallback from '../components/MapFallback';
 
 type LiveWalkTrackingScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -40,8 +50,25 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
   const [startTime] = useState(Date.now());
   const [liveDistance, setLiveDistance] = useState(0); // Distance synced from Firestore
   const [showEndWalkModal, setShowEndWalkModal] = useState(false);
-  const mapRef = useRef<MapView>(null);
+  const cameraRef = useRef<CameraRef | null>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const defaultCameraCenter: LatLng = currentLocation ?? MAP_DEFAULT_CENTER;
+  const routeShape = useMemo(
+    () =>
+      buildLineStringFeatureCollection(
+        routePath.map(({ latitude, longitude }) => ({ latitude, longitude }))
+      ),
+    [routePath]
+  );
+  const routeLineStyle = useMemo(
+    () => ({
+      lineColor: '#5B21B6',
+      lineWidth: 4,
+      lineCap: 'round' as const,
+      lineJoin: 'round' as const,
+    }),
+    []
+  );
 
   useEffect(() => {
     startLocationTracking();
@@ -151,13 +178,11 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
           }).catch(err => console.error('Error updating location:', err));
 
           // Center map on current location
-          if (mapRef.current) {
-            mapRef.current.animateToRegion({
-              ...newCoords,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            }, 1000);
-          }
+          cameraRef.current?.setCamera({
+            centerCoordinate: toPosition(newCoords),
+            zoomLevel: 15,
+            animationDuration: 1000,
+          });
         }
       );
     } catch (error) {
@@ -274,62 +299,60 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
   };
 
   const recenterToUser = () => {
-    if (!currentLocation || !mapRef.current) {
+    if (!currentLocation || !cameraRef.current) {
       Alert.alert('Location Unavailable', 'Current location is not available yet.');
       return;
     }
-    mapRef.current.animateToRegion(
-      {
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      },
-      500
-    );
+    cameraRef.current.setCamera({
+      centerCoordinate: toPosition(currentLocation),
+      zoomLevel: 15,
+      animationDuration: 500,
+    });
   };
 
   return (
     <View style={styles.container}>
       {/* Map */}
       <View style={styles.mapContainer}>
-        {currentLocation ? (
-          <MapView
-            ref={mapRef}
-            provider={PROVIDER_GOOGLE}
-            style={styles.map}
-            initialRegion={{
-              latitude: currentLocation.latitude,
-              longitude: currentLocation.longitude,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            }}
-            showsUserLocation
-            showsMyLocationButton={false}
-            followsUserLocation
-            toolbarEnabled={false}
-            showsCompass={false}
-          >
-            {/* Current location marker */}
-            <Marker
-              coordinate={currentLocation}
-              title="Your Location"
-              pinColor="#EF4444"
-            />
-
-            {/* Route path */}
-            {routePath.length > 1 && (
-              <Polyline
-                coordinates={routePath}
-                strokeColor="#5B21B6"
-                strokeWidth={4}
+        {isMapLibreSupported ? (
+          currentLocation ? (
+            <MapLibreGL.MapView
+              style={styles.map}
+              mapStyle={MAP_STYLE_URL}
+              compassEnabled={false}
+              attributionEnabled={false}
+              logoEnabled={false}
+            >
+              <MapLibreGL.Camera
+                ref={cameraRef}
+                defaultSettings={{
+                  centerCoordinate: toPosition(defaultCameraCenter),
+                  zoomLevel: MAP_DEFAULT_ZOOM,
+                }}
               />
-            )}
-          </MapView>
+              <MapLibreGL.UserLocation visible />
+              {routeShape && (
+                <MapLibreGL.ShapeSource id="live-walk-route" shape={routeShape}>
+                  <MapLibreGL.LineLayer id="live-walk-route-line" style={routeLineStyle} />
+                </MapLibreGL.ShapeSource>
+              )}
+              <MapLibreGL.PointAnnotation
+                id="live-current-location"
+                coordinate={toPosition(currentLocation)}
+                title="Your Location"
+              >
+                <View style={styles.currentLocationMarker}>
+                  <MaterialIcons name="directions-walk" size={24} color="#FFFFFF" />
+                </View>
+              </MapLibreGL.PointAnnotation>
+            </MapLibreGL.MapView>
+          ) : (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading map...</Text>
+            </View>
+          )
         ) : (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading map...</Text>
-          </View>
+          <MapFallback message="Live tracking requires the MoveMates development build or production app." />
         )}
       </View>
 
@@ -585,6 +608,16 @@ const styles = StyleSheet.create({
   map: {
     width: '100%',
     height: '100%',
+  },
+  currentLocationMarker: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,
