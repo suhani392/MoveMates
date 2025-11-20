@@ -2,7 +2,7 @@
 
 *Connecting Walkers and Wanderers for Safe and Enjoyable Walks*
 
-## Quick Start for Judges
+## Quick Start
 
 1. **Prerequisites**
    - Node.js v16+
