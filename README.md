@@ -33,7 +33,7 @@
 3. **Admin Account Credentials**
    - Email: movematesofficial@gmail.com
    - Password: Admin@07
-   For Wanderer and Walker you can create account and sign in with email and password
+   - For Wanderer and Walker you can create account and sign in with email and password
 
 
 ## About MoveMates
@@ -156,7 +156,7 @@ Walker Earnings = Subtotal - Commission + Tip
 - **Backend:** Firebase (Auth, Firestore, Realtime Database)
 - **State Management:** React Context API
 - **Navigation:** React Navigation
-- **Maps & Location:** React Native Maps, Expo Location
+- **Maps & Location:** Mapbox
 - **UI Components:** React Native Paper
 - **Type Safety:** TypeScript
 
