@@ -46,6 +46,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
   const [walkingPace, setWalkingPace] = useState('');
   const [hobbies, setHobbies] = useState('');
   const [age, setAge] = useState('');
+  const [weight, setWeight] = useState('');
   const [experience, setExperience] = useState('');
   const [pricePerHour, setPricePerHour] = useState('');
   
@@ -90,6 +91,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
           setWalkingPace(data.walkingPace || data.pace || '');
           setHobbies(data.hobbies || '');
           setAge(data.age?.toString() || '');
+          setWeight(data.weight?.toString() || '');
           setExperience(data.experience || '');
           setPricePerHour(data.pricePerHour?.toString() || '');
           setProfileImage(data.profileImage || data.image || null);
@@ -176,6 +178,9 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
 
         if (age) {
           updateData.age = parseInt(age);
+        }
+        if (weight) {
+          updateData.weight = parseFloat(weight);
         }
 
         // Walker-specific fields
@@ -461,6 +466,20 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
             />
           </View>
 
+          {/* Weight */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Weight (kg)</Text>
+            <TextInput
+              style={styles.input}
+              value={weight}
+              onChangeText={setWeight}
+              placeholder="Enter your weight in kg"
+              placeholderTextColor="#999"
+              keyboardType="decimal-pad"
+            />
+            <Text style={styles.helperText}>Used for accurate calorie calculation</Text>
+          </View>
+
           {/* Walker-specific fields */}
           {userRole === 'walker' && (
             <>
@@ -647,6 +666,12 @@ const styles = StyleSheet.create({
     color: '#000000',
     borderWidth: 1,
     borderColor: '#E0E0E0',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#666666',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   textArea: {
     minHeight: 100,

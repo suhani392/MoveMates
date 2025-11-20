@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,23 +11,14 @@ import {
   TextInput,
   Clipboard,
 } from 'react-native';
-import MapLibreGL, { CameraRef } from '@maplibre/maplibre-react-native';
+import Mapbox from '@rnmapbox/maps';
+import '../utils/mapboxConfig'; // Initialize Mapbox
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { doc, updateDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot, getDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import {
-  MAP_DEFAULT_CENTER,
-  MAP_DEFAULT_ZOOM,
-  MAP_STYLE_URL,
-  buildLineStringFeatureCollection,
-  isMapLibreSupported,
-  toPosition,
-  type LatLng,
-} from '../utils/mapLibre';
-import MapFallback from '../components/MapFallback';
 
 type LiveWalkTrackingScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -50,25 +41,11 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
   const [startTime] = useState(Date.now());
   const [liveDistance, setLiveDistance] = useState(0); // Distance synced from Firestore
   const [showEndWalkModal, setShowEndWalkModal] = useState(false);
-  const cameraRef = useRef<CameraRef | null>(null);
+  const mapRef = useRef<Mapbox.MapView>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
-  const defaultCameraCenter: LatLng = currentLocation ?? MAP_DEFAULT_CENTER;
-  const routeShape = useMemo(
-    () =>
-      buildLineStringFeatureCollection(
-        routePath.map(({ latitude, longitude }) => ({ latitude, longitude }))
-      ),
-    [routePath]
-  );
-  const routeLineStyle = useMemo(
-    () => ({
-      lineColor: '#5B21B6',
-      lineWidth: 4,
-      lineCap: 'round' as const,
-      lineJoin: 'round' as const,
-    }),
-    []
-  );
+  // Use refs to track latest values for the callback (avoids closure issues)
+  const lastLocationRef = useRef<LocationCoords | null>(null);
+  const totalDistanceRef = useRef<number>(0);
 
   useEffect(() => {
     startLocationTracking();
@@ -136,6 +113,9 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
 
       setCurrentLocation(initialCoords);
       setRoutePath([initialCoords]);
+      // Initialize refs with initial values
+      lastLocationRef.current = initialCoords;
+      totalDistanceRef.current = 0;
 
       // Start watching location
       locationSubscription.current = await Location.watchPositionAsync(
@@ -150,19 +130,22 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
             longitude: location.coords.longitude,
           };
 
-          // Calculate distance from previous location
-          let newDistance = 0;
-          if (currentLocation) {
+          // Calculate distance from previous location using refs (always current values)
+          let newDistance = totalDistanceRef.current;
+          if (lastLocationRef.current) {
             const distance = calculateDistance(
-              currentLocation.latitude,
-              currentLocation.longitude,
+              lastLocationRef.current.latitude,
+              lastLocationRef.current.longitude,
               newCoords.latitude,
               newCoords.longitude
             );
-            newDistance = totalDistance + distance;
+            newDistance = totalDistanceRef.current + distance;
+            totalDistanceRef.current = newDistance;
             setTotalDistance(newDistance);
           }
 
+          // Update refs and state
+          lastLocationRef.current = newCoords;
           setCurrentLocation(newCoords);
           setRoutePath((prevPath) => [...prevPath, newCoords]);
 
@@ -178,11 +161,9 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
           }).catch(err => console.error('Error updating location:', err));
 
           // Center map on current location
-          cameraRef.current?.setCamera({
-            centerCoordinate: toPosition(newCoords),
-            zoomLevel: 15,
-            animationDuration: 1000,
-          });
+          if (mapRef.current) {
+            mapRef.current.flyTo([newCoords.longitude, newCoords.latitude], 1000);
+          }
         }
       );
     } catch (error) {
@@ -260,12 +241,15 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
       // Calculate duration in minutes
       const durationInMinutes = Math.round((Date.now() - startTime) / 60000);
 
+      // Use ref value for final distance (most accurate)
+      const finalDistance = totalDistanceRef.current || totalDistance;
+
       // Update walk status in Firestore
       const requestRef = doc(db, 'walkRequests', requestId);
       await updateDoc(requestRef, {
         status: 'completed',
-        completedAt: new Date(),
-        totalDistance: totalDistance,
+        completedAt: Timestamp.now(), // Use Firestore Timestamp instead of Date
+        totalDistance: finalDistance,
         totalDuration: durationInMinutes,
       });
 
@@ -278,7 +262,7 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
       // Navigate to Payment screen with walk data
       navigation.replace('Payment', {
         requestId,
-        distance: totalDistance,
+        distance: finalDistance,
         duration: durationInMinutes,
         walkerId,
         walkerName: wandererName,
@@ -299,60 +283,62 @@ const LiveWalkTrackingScreen: React.FC<LiveWalkTrackingScreenProps> = ({ navigat
   };
 
   const recenterToUser = () => {
-    if (!currentLocation || !cameraRef.current) {
+    if (!currentLocation || !mapRef.current) {
       Alert.alert('Location Unavailable', 'Current location is not available yet.');
       return;
     }
-    cameraRef.current.setCamera({
-      centerCoordinate: toPosition(currentLocation),
-      zoomLevel: 15,
-      animationDuration: 500,
-    });
+    mapRef.current.flyTo([currentLocation.longitude, currentLocation.latitude], 500);
   };
 
   return (
     <View style={styles.container}>
       {/* Map */}
       <View style={styles.mapContainer}>
-        {isMapLibreSupported ? (
-          currentLocation ? (
-            <MapLibreGL.MapView
-              style={styles.map}
-              mapStyle={MAP_STYLE_URL}
-              compassEnabled={false}
-              attributionEnabled={false}
-              logoEnabled={false}
-            >
-              <MapLibreGL.Camera
-                ref={cameraRef}
-                defaultSettings={{
-                  centerCoordinate: toPosition(defaultCameraCenter),
-                  zoomLevel: MAP_DEFAULT_ZOOM,
+        {currentLocation ? (
+          <Mapbox.MapView
+            ref={mapRef}
+            style={styles.map}
+            styleURL={Mapbox.StyleURL.Street}
+            zoomEnabled={true}
+            scrollEnabled={true}
+            pitchEnabled={false}
+            rotateEnabled={false}
+          >
+            <Mapbox.Camera
+              zoomLevel={15}
+              centerCoordinate={[currentLocation.longitude, currentLocation.latitude]}
+              animationMode="flyTo"
+              animationDuration={0}
+            />
+            <Mapbox.UserLocation visible={true} />
+            {/* Route path */}
+            {routePath.length > 1 && (
+              <Mapbox.ShapeSource
+                id="routePath"
+                shape={{
+                  type: 'Feature',
+                  geometry: {
+                    type: 'LineString',
+                    coordinates: routePath.map(coord => [coord.longitude, coord.latitude]),
+                  },
                 }}
-              />
-              <MapLibreGL.UserLocation visible />
-              {routeShape && (
-                <MapLibreGL.ShapeSource id="live-walk-route" shape={routeShape}>
-                  <MapLibreGL.LineLayer id="live-walk-route-line" style={routeLineStyle} />
-                </MapLibreGL.ShapeSource>
-              )}
-              <MapLibreGL.PointAnnotation
-                id="live-current-location"
-                coordinate={toPosition(currentLocation)}
-                title="Your Location"
               >
-                <View style={styles.currentLocationMarker}>
-                  <MaterialIcons name="directions-walk" size={24} color="#FFFFFF" />
-                </View>
-              </MapLibreGL.PointAnnotation>
-            </MapLibreGL.MapView>
-          ) : (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading map...</Text>
-            </View>
-          )
+                <Mapbox.LineLayer
+                  id="routePathLine"
+                  style={{
+                    lineColor: '#14B8A6',
+                    lineWidth: 4,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                  }}
+                />
+              </Mapbox.ShapeSource>
+            )}
+          </Mapbox.MapView>
         ) : (
-          <MapFallback message="Live tracking requires the MoveMates development build or production app." />
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading map...</Text>
+          </View>
         )}
       </View>
 
@@ -608,16 +594,6 @@ const styles = StyleSheet.create({
   map: {
     width: '100%',
     height: '100%',
-  },
-  currentLocationMarker: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#EF4444',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,

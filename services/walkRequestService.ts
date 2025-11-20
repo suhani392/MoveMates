@@ -29,6 +29,7 @@ export interface WalkRequest {
   scheduledDate: string;
   scheduledTime: string;
   preference: string;
+  reminder?: string; // 'None', '5 min before', '15 min before', '30 min before'
   status: 'pending' | 'accepted' | 'declined' | 'completed' | 'cancelled';
   createdAt: Timestamp;
   acceptedAt?: Timestamp;

@@ -3,7 +3,6 @@
     "name": "MoveMates",
     "slug": "MoveMates",
     "version": "1.0.0",
-    "assetBundlePatterns": ["**/*"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,10 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.movemates.app",
-      "config": {
-        "googleMapsApiKey": "AIzaSyAAn7WMlGaRR7Si4cf5SCZE91kNOUuxBrQ"
-      }
+      "bundleIdentifier": "com.movemates.app"
     },
     "android": {
       "package": "com.movemates.app",
@@ -39,7 +35,15 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow MoveMates to use your location to provide walking services.",
+          "locationAlwaysPermission": "Allow MoveMates to use your location in the background.",
+          "locationWhenInUsePermission": "Allow MoveMates to use your location to provide walking services."
+        }
+      ]
     ],
     "extra": {
       "googleOAuth": {
@@ -49,9 +53,8 @@
       },
       "ORS_API_KEY": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjllNzk5YmEwZWQxYjQ5YmNhZTBhNjZkY2YwYjc5MmI2IiwiaCI6Im11cm11cjY0In0=",
       "eas": {
-        "projectId": "a36b6368-643f-45e4-b190-b45af0de3057"
+        "projectId": "f6701c41-0312-4ecf-8f86-53983643ca44"
       }
-    },
-    "owner": "unofficiallysuhani"
+    }
   }
 }

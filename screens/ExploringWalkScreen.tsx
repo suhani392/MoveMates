@@ -11,7 +11,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import MapLibreGL, { CameraRef } from '@maplibre/maplibre-react-native';
+import Mapbox from '@rnmapbox/maps';
+import '../utils/mapboxConfig'; // Initialize Mapbox
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -20,15 +21,6 @@ import { db, auth } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import {
-  MAP_DEFAULT_CENTER,
-  MAP_DEFAULT_ZOOM,
-  MAP_STYLE_URL,
-  isMapLibreSupported,
-  toPosition,
-  type LatLng,
-} from '../utils/mapLibre';
-import MapFallback from '../components/MapFallback';
 
 type ExploringWalkScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -47,52 +39,94 @@ const ExploringWalkScreen: React.FC<ExploringWalkScreenProps> = ({ navigation })
   const { t } = useLanguage();
 
   const [meetingPoint, setMeetingPoint] = useState('');
-  const [meetingPointCoord, setMeetingPointCoord] = useState<LatLng | null>(null);
+  const [meetingPointCoord, setMeetingPointCoord] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
   const [customDuration, setCustomDuration] = useState('');
   const [placeType, setPlaceType] = useState('');
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState<LatLng | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [currentAddress, setCurrentAddress] = useState('');
   const [locationPermission, setLocationPermission] = useState(false);
+  const [isLocationReady, setIsLocationReady] = useState(false);
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [recentLocations, setRecentLocations] = useState<string[]>([]);
-  const cameraRef = useRef<CameraRef | null>(null);
+  const mapRef = useRef<Mapbox.MapView>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const durationPresets = [15, 30, 60];
-  const defaultCameraCenter = currentLocation ?? MAP_DEFAULT_CENTER;
+
+  // Define reverseGeocode function before useEffect (moved up to fix crash)
+  const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'MoveMates/1.0 (contact@movemates.app)' },
+      });
+      const data = await res.json();
+      return data?.display_name || 'Current Location';
+    } catch (error) {
+      console.error('Reverse geocode error:', error);
+      return 'Current Location';
+    }
+  };
 
   // Request location permission and get current location
   useEffect(() => {
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to use the map.');
-        return;
+      try {
+        // Set default location first to prevent MapView crash
+        const defaultLocation = { latitude: 20.5937, longitude: 78.9629 };
+        setCurrentLocation(defaultLocation);
+        setIsLocationReady(true);
+
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Denied', 'Location permission is required to use the map. Using default location.');
+          return;
+        }
+        setLocationPermission(true);
+
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+
+        const coords = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        };
+
+        setCurrentLocation(coords);
+
+        if (mapRef.current) {
+          try {
+            mapRef.current.flyTo([coords.longitude, coords.latitude], 1000);
+          } catch (mapError) {
+            console.error('Map animation error:', mapError);
+          }
+        }
+
+        try {
+          const address = await reverseGeocode(coords.latitude, coords.longitude);
+          setCurrentAddress(address);
+        } catch (geocodeError) {
+          console.error('Geocoding error:', geocodeError);
+          setCurrentAddress(`${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`);
+        }
+      } catch (error) {
+        console.error('Location error:', error);
+        // Ensure we have a location even if there's an error
+        if (!currentLocation) {
+          setCurrentLocation({ latitude: 20.5937, longitude: 78.9629 });
+          setIsLocationReady(true);
+        }
       }
-      setLocationPermission(true);
-
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      const coords = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      };
-
-      setCurrentLocation(coords);
-
-      cameraRef.current?.setCamera({
-        centerCoordinate: toPosition(coords),
-        zoomLevel: 14,
-        animationDuration: 1000,
-      });
-
-      const address = await reverseGeocode(coords.latitude, coords.longitude);
-      setCurrentAddress(address);
     })();
   }, []);
 
@@ -132,20 +166,6 @@ const ExploringWalkScreen: React.FC<ExploringWalkScreenProps> = ({ navigation })
 
     return () => unsubscribe();
   }, []);
-
-  const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
-    try {
-      const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`;
-      const res = await fetch(url, {
-        headers: { 'User-Agent': 'MoveMates/1.0 (contact@movemates.app)' },
-      });
-      const data = await res.json();
-      return data?.display_name || 'Current Location';
-    } catch (error) {
-      console.error('Reverse geocode error:', error);
-      return 'Current Location';
-    }
-  };
 
   const geocodeText = async (text: string): Promise<{ latitude: number; longitude: number }> => {
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&limit=1`;
@@ -230,11 +250,9 @@ const ExploringWalkScreen: React.FC<ExploringWalkScreenProps> = ({ navigation })
 
     if (coords) {
       setMeetingPointCoord(coords);
-      cameraRef.current?.setCamera({
-        centerCoordinate: toPosition(coords),
-        zoomLevel: 15,
-        animationDuration: 500,
-      });
+      if (mapRef.current) {
+        mapRef.current.flyTo([coords.longitude, coords.latitude], 500);
+      }
     }
   };
 
@@ -244,28 +262,23 @@ const ExploringWalkScreen: React.FC<ExploringWalkScreenProps> = ({ navigation })
       setShowSuggestions(false);
       if (currentLocation) {
         setMeetingPointCoord(currentLocation);
-        cameraRef.current?.setCamera({
-          centerCoordinate: toPosition(currentLocation),
-          zoomLevel: 15,
-          animationDuration: 500,
-        });
+        if (mapRef.current) {
+          mapRef.current.flyTo([currentLocation.longitude, currentLocation.latitude], 500);
+        }
       }
     }
   };
 
   const recenterToUser = () => {
-    if (!currentLocation || !cameraRef.current) {
+    if (!currentLocation || !mapRef.current) {
       Alert.alert('Location Unavailable', 'Enable location services to use this feature.');
       return;
     }
-    cameraRef.current.setCamera({
-      centerCoordinate: toPosition(currentLocation),
-      zoomLevel: 15,
-      animationDuration: 500,
-    });
+    mapRef.current.flyTo([currentLocation.longitude, currentLocation.latitude], 500);
   };
 
   const handleContinue = () => {
+    try {
     if (!meetingPoint.trim()) {
       Alert.alert('Missing Information', 'Please enter a meeting point.');
       return;
@@ -289,43 +302,55 @@ const ExploringWalkScreen: React.FC<ExploringWalkScreenProps> = ({ navigation })
       duration: finalDuration,
       placeType: placeType.trim(),
     });
+    } catch (error) {
+      console.error('Error in handleContinue:', error);
+      Alert.alert('Error', 'An error occurred. Please try again.');
+    }
   };
+
+  // Don't render MapView until location is ready
+  if (!isLocationReady || !currentLocation) {
+    return (
+      <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32, justifyContent: 'center', alignItems: 'center'}}>
+        <Text>Loading map...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{flex:1, backgroundColor:'#FFF', paddingTop: 32}}>
       {/* Map */}
-      {isMapLibreSupported ? (
-        <MapLibreGL.MapView
-          style={styles.map}
-          mapStyle={MAP_STYLE_URL}
-          compassEnabled={false}
-          attributionEnabled={false}
-          logoEnabled={false}
+      <View style={styles.map}>
+        <Mapbox.MapView
+          ref={mapRef}
+          style={StyleSheet.absoluteFillObject}
+          styleURL={Mapbox.StyleURL.Street}
+          zoomEnabled={true}
+          scrollEnabled={true}
+          pitchEnabled={false}
+          rotateEnabled={false}
         >
-          <MapLibreGL.Camera
-            ref={cameraRef}
-            defaultSettings={{
-              centerCoordinate: toPosition(defaultCameraCenter),
-              zoomLevel: MAP_DEFAULT_ZOOM,
-            }}
+          <Mapbox.Camera
+            zoomLevel={13}
+            centerCoordinate={[currentLocation.longitude, currentLocation.latitude]}
+            animationMode="flyTo"
+            animationDuration={0}
           />
-          <MapLibreGL.UserLocation visible />
+          {locationPermission && (
+            <Mapbox.UserLocation visible={true} />
+          )}
           {meetingPointCoord && (
-            <MapLibreGL.PointAnnotation
-              id="exploring-meeting"
-              coordinate={toPosition(meetingPointCoord)}
+            <Mapbox.PointAnnotation
+              id="meetingPoint"
+              coordinate={[meetingPointCoord.longitude, meetingPointCoord.latitude]}
             >
               <View style={styles.markerContainer}>
-                <MaterialIcons name="place" size={18} color="#FFFFFF" />
+                <View style={styles.markerPin} />
               </View>
-            </MapLibreGL.PointAnnotation>
+            </Mapbox.PointAnnotation>
           )}
-        </MapLibreGL.MapView>
-      ) : (
-        <View style={styles.map}>
-          <MapFallback />
-        </View>
-      )}
+        </Mapbox.MapView>
+      </View>
 
       {/* Header with black 60% opacity */}
       <View style={styles.header}>
@@ -501,16 +526,6 @@ const styles = StyleSheet.create({
   map: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 0,
-  },
-  markerContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#1E88E5',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   header: {
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -709,6 +724,23 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  markerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  markerPin: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FF0000',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });
 

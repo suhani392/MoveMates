@@ -58,21 +58,25 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
       console.log('=== DEBUGGING WALK REQUESTS ===');
       console.log('Walker UID:', user.uid);
       
-      // 1. Check walk requests assigned to this walker
+      // Use a query filtered by walkerId instead of reading all documents
+      // This respects Firestore security rules
+      const walkRequestsRef = collection(db, 'walkRequests');
       const walkerQuery = query(
-        collection(db, 'walkRequests'),
+        walkRequestsRef,
         where('walkerId', '==', user.uid)
       );
-      const walkerSnapshot = await getDocs(walkerQuery);
-      console.log(`Found ${walkerSnapshot.docs.length} requests for this walker`);
-
-      const walkerRequests = walkerSnapshot.docs.map(doc => ({
+      
+      const walkerRequestsSnapshot = await getDocs(walkerQuery);
+      console.log(`Found ${walkerRequestsSnapshot.docs.length} requests for this walker`);
+      
+      // Map the documents
+      const walkerRequests = walkerRequestsSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         _exists: true
       }));
       
-      // Log details of each request
+      // 3. Log details of each request
       walkerRequests.forEach((req: any) => {
         console.log(`\n--- Request ${req.id} ---`);
         console.log('Status:', req.status);
@@ -83,12 +87,11 @@ const WalkerHomeScreen: React.FC<WalkerHomeScreenProps> = ({ navigation }) => {
         console.log('All fields:', Object.keys(req));
       });
       
-      // Check if any requests are pending but not showing up
+      // 4. Check if any requests are pending but not showing up
       const pendingRequests = walkerRequests.filter((req: any) => req.status === 'pending');
       console.log(`\nFound ${pendingRequests.length} PENDING requests`);
       
       return {
-        totalRequests: walkerSnapshot.docs.length,
         walkerRequests: walkerRequests.length,
         pendingRequests: pendingRequests.length,
         requests: walkerRequests

@@ -11,14 +11,16 @@ import {
   Animated,
   ActivityIndicator,
   TextInput,
+  Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { authService } from '../services/authService';
-import { collection, query, where, getDocs, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 
 type RequestWalkScreenProps = {
@@ -80,60 +82,105 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
     ]).start();
   }, []);
 
-  useEffect(() => {
-    const fetchCalories = async () => {
-      setLoadingCalories(true);
-      try {
-        const user = auth.currentUser;
-        if (!user) {
-          setCaloriesBurnt(0);
-          setLoadingCalories(false);
-          return;
-        }
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(today.getDate() + 1);
-        
-        const requestsRef = collection(db, 'walkRequests');
-        // Walker
-        const walkerQuery = query(
-          requestsRef,
-          where('walkerId', '==', user.uid),
-          where('status', '==', 'completed'),
-          orderBy('completedAt','desc')
-        );
-        // Wanderer
-        const wandererQuery = query(
-          requestsRef,
-          where('wandererId', '==', user.uid),
-          where('status', '==', 'completed'),
-          orderBy('completedAt','desc')
-        );
-        const [walkerSnap, wandererSnap] = await Promise.all([
-          getDocs(walkerQuery),
-          getDocs(wandererQuery)
-        ]);
-        let distanceSum = 0;
-        const useIfToday = (doc) => {
-          const data = doc.data();
-          const completedAt = data.completedAt?.toDate?.() || null;
-          if (!completedAt) return false;
-          return completedAt >= today && completedAt < tomorrow;
-        };
-        walkerSnap.forEach(doc => { if (useIfToday(doc)) { distanceSum += doc.data().totalDistance || 0; }});
-        wandererSnap.forEach(doc => { if (useIfToday(doc)) { distanceSum += doc.data().totalDistance || 0; }});
-        const weight = userData?.weight || 60;
-        const calories = Math.round(weight * (distanceSum / 1000) * 0.57);
-        setCaloriesBurnt(calories);
-      } catch (e) {
+  const fetchCalories = React.useCallback(async () => {
+    setLoadingCalories(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) {
         setCaloriesBurnt(0);
-      } finally {
         setLoadingCalories(false);
+        return;
       }
-    };
-    fetchCalories();
+      
+      // Get today's date range (start and end of day)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+      
+      const requestsRef = collection(db, 'walkRequests');
+      
+      // Query for walker completed walks (without orderBy to avoid index requirement)
+      const walkerQuery = query(
+        requestsRef,
+        where('walkerId', '==', user.uid),
+        where('status', '==', 'completed')
+      );
+      
+      // Query for wanderer completed walks
+      const wandererQuery = query(
+        requestsRef,
+        where('wandererId', '==', user.uid),
+        where('status', '==', 'completed')
+      );
+      
+      const [walkerSnap, wandererSnap] = await Promise.all([
+        getDocs(walkerQuery).catch(() => ({ docs: [] })),
+        getDocs(wandererQuery).catch(() => ({ docs: [] }))
+      ]);
+      
+      let distanceSum = 0;
+      
+      // Filter and sum distances for today's walks
+      const processDoc = (docSnap: any) => {
+        const data = docSnap.data();
+        const completedAt = data.completedAt;
+        
+        // Check if completedAt exists and is within today
+        if (completedAt) {
+          let completedDate: Date | null = null;
+          
+          // Handle both Timestamp and Date objects
+          if (completedAt.toDate) {
+            completedDate = completedAt.toDate();
+          } else if (completedAt instanceof Date) {
+            completedDate = completedAt;
+          } else if (completedAt.seconds) {
+            // Firestore Timestamp format
+            completedDate = new Date(completedAt.seconds * 1000);
+          }
+          
+          if (completedDate && completedDate >= today && completedDate < tomorrow) {
+            const distance = data.totalDistance || 0;
+            distanceSum += distance;
+          }
+        }
+      };
+      
+      walkerSnap.docs.forEach(processDoc);
+      wandererSnap.docs.forEach(processDoc);
+      
+      // Improved calorie calculation formula
+      // Calories = MET × weight (kg) × time (hours)
+      // For walking at moderate pace: MET = 3.5
+      // Or simpler: Calories per km = weight (kg) × 0.6 (for moderate walking pace)
+      const weight = userData?.weight || 70; // Default to 70kg if not set
+      const distanceKm = distanceSum / 1000; // Convert meters to kilometers
+      
+      // More accurate formula: Calories = weight (kg) × distance (km) × 0.6
+      // This accounts for moderate walking pace (3.5 MET)
+      const calories = Math.round(weight * distanceKm * 0.6);
+      
+      setCaloriesBurnt(calories);
+    } catch (e) {
+      console.error('Error fetching calories:', e);
+      setCaloriesBurnt(0);
+    } finally {
+      setLoadingCalories(false);
+    }
   }, [userData]);
+
+  // Fetch calories on mount and when userData changes
+  useEffect(() => {
+    fetchCalories();
+  }, [fetchCalories]);
+
+  // Refresh calories when screen comes into focus (e.g., after completing a walk)
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchCalories();
+    }, [fetchCalories])
+  );
 
   const openDrawer = () => {
     setMenuVisible(true);
@@ -260,25 +307,25 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
           ]}
         >
           {/* Calories Burnt Card */}
-          <View style={styles.statCard}>
-            <MaterialIcons name="local-fire-department" size={32} color="#FFFFFF" />
+          <View style={styles.caloriesCard}>
+            <MaterialIcons name="local-fire-department" size={32} color="#000000" />
             {loadingCalories ? (
-              <Text style={styles.statValue}>...</Text>
+              <Text style={styles.statValueBlack}>...</Text>
             ) : (
-              <Text style={styles.statValue}>{caloriesBurnt}</Text>
+              <Text style={styles.statValueBlack}>{caloriesBurnt}</Text>
             )}
-            <Text style={styles.statLabel}>{"Calories Burnt\nToday"}</Text>
+            <Text style={styles.statLabelBlack}>{"Calories Burnt\nToday"}</Text>
           </View>
 
           {/* Weekly Target Card */}
           <TouchableOpacity 
-            style={styles.statCard}
+            style={styles.targetCard}
             onPress={() => setShowTargetModal(true)}
             activeOpacity={0.9}
           >
-            <MaterialIcons name="flag" size={32} color="#FFFFFF" />
-            <Text style={styles.statValue}>{weeklyTarget}</Text>
-            <Text style={styles.statLabel}>Target This{'\n'}Week</Text>
+            <MaterialIcons name="flag" size={32} color="#000000" />
+            <Text style={styles.statValueBlack}>{weeklyTarget}</Text>
+            <Text style={styles.statLabelBlack}>Target This{'\n'}Week</Text>
           </TouchableOpacity>
         </Animated.View>
 
@@ -305,7 +352,14 @@ const RequestWalkScreen: React.FC<RequestWalkScreenProps> = ({ navigation }) => 
             >
               <TouchableOpacity
                 style={[styles.walkCard, { backgroundColor: option.bgColor }]}
-                onPress={() => navigation.navigate(option.screen as any)}
+                onPress={() => {
+                  try {
+                    navigation.navigate(option.screen as any);
+                  } catch (error) {
+                    console.error('Navigation error:', error);
+                    Alert.alert('Error', 'Unable to navigate. Please try again.');
+                  }
+                }}
                 activeOpacity={0.7}
               >
                 <View style={[styles.walkIconContainer, { backgroundColor: option.color + '20' }]}>
@@ -585,6 +639,30 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
+  caloriesCard: {
+    flex: 1,
+    backgroundColor: '#FFE5CC', // Pastel orange
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  targetCard: {
+    flex: 1,
+    backgroundColor: '#D6E8FF', // Pastel blue
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   statValue: {
     fontSize: 28,
     fontWeight: '700',
@@ -592,10 +670,24 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 5,
   },
+  statValueBlack: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#000000', // black
+    marginTop: 10,
+    marginBottom: 5,
+  },
   statLabel: {
     fontSize: 13,
     fontWeight: '600',
     color: '#FFFFFF', // white
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  statLabelBlack: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#000000', // black
     textAlign: 'center',
     lineHeight: 18,
   },

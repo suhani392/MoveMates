@@ -12,6 +12,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { auth } from '../firebaseConfig';
 import { WalkRequestService } from '../services/walkRequestService';
+import { scheduleWalkReminder } from '../services/reminderService';
 
 type WalkerRequestedScreenProps = {
   navigation: StackNavigationProp<any>;
@@ -65,6 +66,7 @@ const WalkerRequestedScreen: React.FC<WalkerRequestedScreenProps> = ({ navigatio
         scheduledDate: scheduleData.scheduledDate,
         scheduledTime: scheduleData.scheduledTime,
         preference: scheduleData.preference || 'Solo',
+        reminder: scheduleData.reminder || 'None', // Include reminder
         pricePerHour: walker.pricePerHour,
         estimatedDuration: scheduleData.estimatedDuration,
         // Only include duration if it exists and is not undefined
@@ -77,6 +79,29 @@ const WalkerRequestedScreen: React.FC<WalkerRequestedScreenProps> = ({ navigatio
       const id = await WalkRequestService.createRequest(requestData);
       setRequestId(id);
       console.log('Walk request created successfully:', id);
+
+      // Schedule reminder notification if reminder is set
+      if (scheduleData.reminder && scheduleData.reminder !== 'None') {
+        try {
+          await scheduleWalkReminder(
+            id,
+            scheduleData.scheduledDate,
+            scheduleData.scheduledTime,
+            scheduleData.reminder,
+            user.uid,
+            walker.id,
+            scheduleData.wandererName || 'Unknown Wanderer',
+            walker.name,
+            scheduleData.walkType,
+            scheduleData.meetingPoint,
+            scheduleData.pickup
+          );
+          console.log('Reminder scheduled successfully');
+        } catch (error) {
+          console.error('Error scheduling reminder:', error);
+          // Don't show error to user, reminder is not critical
+        }
+      }
     } catch (error) {
       console.error('Error creating walk request:', error);
       Alert.alert('Error', 'Failed to send request. Please try again.');
