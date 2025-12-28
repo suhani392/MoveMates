@@ -1,7 +1,0 @@
-    // ===============================
-    // 📝 Walker Quiz Results
-    // ===============================
-    match /userTests/{userId} {
-      allow get, create, update: if request.auth != null && request.auth.uid == userId;
-      allow read: if isAdmin();
-    }
