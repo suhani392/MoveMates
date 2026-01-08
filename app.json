@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "MoveMates",
+    "slug": "MoveMates",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.movemates.app"
+    },
+    "android": {
+      "package": "com.movemates.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "INTERNET"
+      ],
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow MoveMates to use your location to provide walking services.",
+          "locationAlwaysPermission": "Allow MoveMates to use your location in the background.",
+          "locationWhenInUsePermission": "Allow MoveMates to use your location to provide walking services."
+        }
+      ]
+    ],
+    "extra": {
+      "googleOAuth": {
+        "webClientId": "642952440569-r97i0vfni9pd3r3j2992l92l7m6936p1.apps.googleusercontent.com",
+        "iosClientId": "",
+        "androidClientId": "642952440569-j8pk0rs3ehd9250m4tmf44of85me06k9.apps.googleusercontent.com"
+      },
+      "ORS_API_KEY": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjllNzk5YmEwZWQxYjQ5YmNhZTBhNjZkY2YwYjc5MmI2IiwiaCI6Im11cm11cjY0In0=",
+      "eas": {
+        "projectId": "f6701c41-0312-4ecf-8f86-53983643ca44"
+      }
+    }
+  }
+}

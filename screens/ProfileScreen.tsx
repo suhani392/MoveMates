@@ -1,0 +1,356 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, RefreshControl, Image } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { auth } from '../firebaseConfig';
+import { useAuth } from '../contexts/AuthContext';
+
+type ProfileScreenProps = {
+  navigation: StackNavigationProp<any>;
+};
+
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const { userData } = useAuth();
+
+  useEffect(() => {
+    // When auth context resolves, stop loading
+    if (userData !== undefined) {
+      setLoading(false);
+    }
+  }, [userData]);
+
+  const onRefresh = () => {
+    // We rely on real-time context; just briefly show the spinner
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 400);
+  };
+
+  const getRoleDisplayName = (role: string) => {
+    if (role === 'wanderer') return 'Wanderer';
+    if (role === 'walker') return 'Walker';
+    if (role === 'admin') return 'Admin';
+    return role;
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#000000" />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!userData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>Unable to load profile</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#000000"
+            colors={['#000000']}
+          />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}>
+            <MaterialIcons name="arrow-back" size={28} color="#000" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Profile</Text>
+        </View>
+
+        {/* Profile Header */}
+        <View style={styles.profileHeader}>
+          <View style={styles.avatarContainer}>
+            {userData?.profileImage || userData?.image ? (
+              <Image
+                source={{ uri: (userData.profileImage || userData.image) }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={styles.avatar}>
+                <MaterialIcons name="person" size={80} color="#FFFFFF" />
+              </View>
+            )}
+          </View>
+
+          <View style={styles.userInfoContainer}>
+            <Text style={styles.userName}>{userData.name || 'User Name'}</Text>
+            <Text style={styles.userRole}>{getRoleDisplayName(userData.role)}</Text>
+            <View style={styles.verifiedContainer}>
+              <MaterialIcons name="verified" size={18} color="#3B82F6" />
+              <Text style={styles.verifiedText}>verified</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Information Sections */}
+        <View style={styles.infoContainer}>
+          {/* Personal Information */}
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>Personal Information</Text>
+            {userData.dob && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Date of Birth:</Text>
+                <Text style={styles.sectionContent}>
+                  {new Date(userData.dob).toLocaleDateString()}
+                </Text>
+              </View>
+            )}
+            {userData.gender && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Gender:</Text>
+                <Text style={styles.sectionContent}>{userData.gender}</Text>
+              </View>
+            )}
+            {userData.age && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Age:</Text>
+                <Text style={styles.sectionContent}>{userData.age}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Contact Information */}
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>Contact Information</Text>
+            {userData.contactNo && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Contact Number:</Text>
+                <Text style={styles.sectionContent}>{userData.contactNo}</Text>
+              </View>
+            )}
+            {userData.altContactNo && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Alternate Contact:</Text>
+                <Text style={styles.sectionContent}>{userData.altContactNo}</Text>
+              </View>
+            )}
+            {userData.email && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Email:</Text>
+                <Text style={styles.sectionContent}>{userData.email}</Text>
+              </View>
+            )}
+            {userData.address && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Address:</Text>
+                <Text style={styles.sectionContent}>{userData.address}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Language Preferences */}
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>Language Preferences</Text>
+            {userData.motherTongue && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Mother Tongue:</Text>
+                <Text style={styles.sectionContent}>{userData.motherTongue}</Text>
+              </View>
+            )}
+            {(userData.preferredLanguage || userData.languages) && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Preferred Languages:</Text>
+                <Text style={styles.sectionContent}>
+                  {userData.preferredLanguage || userData.languages}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* About Section */}
+          {userData.about && (
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionTitle}>About</Text>
+              <Text style={styles.sectionContent}>
+                {userData.about}
+              </Text>
+            </View>
+          )}
+
+          {/* Pace Section - Only for Wanderers and Walkers */}
+          {(userData.role === 'wanderer' || userData.role === 'walker') && userData.walkingPace && (
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionTitle}>Walking Pace</Text>
+              <Text style={styles.sectionContent}>
+                {userData.walkingPace || userData.pace}
+              </Text>
+            </View>
+          )}
+
+          {/* Hobbies Section */}
+          {userData.hobbies && (
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionTitle}>Hobbies</Text>
+              <Text style={styles.sectionContent}>
+                {userData.hobbies}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Edit Prompt */}
+        <View style={styles.editPromptContainer}>
+          <Text style={styles.editPromptText}>Need to edit your information?</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
+            <Text style={styles.editButtonText}>Edit my information</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#666666',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  backButton: {
+    marginRight: 16,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  avatarContainer: {
+    marginRight: 20,
+  },
+  avatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#000000',
+  },
+  userInfoContainer: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 4,
+  },
+  userRole: {
+    fontSize: 16,
+    color: '#666666',
+    marginBottom: 8,
+  },
+  verifiedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  verifiedText: {
+    color: '#3B82F6',
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  infoContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  infoSection: {
+    marginBottom: 28,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 12,
+  },
+  infoRow: {
+    marginBottom: 12,
+  },
+  infoLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666666',
+    marginBottom: 4,
+  },
+  sectionContent: {
+    fontSize: 15,
+    color: '#333333',
+    lineHeight: 22,
+  },
+  editPromptContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  editPromptText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 8,
+  },
+  editButtonText: {
+    color: '#3B82F6',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+});
+
+export default ProfileScreen;
