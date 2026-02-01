@@ -81,3 +81,7 @@ yarn-error.*
 *.tsbuildinfo
 
 # @end expo-cli
+
+# User-specific folders
+%USERPROFILE%/
+.eas/env/
