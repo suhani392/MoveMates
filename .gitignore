@@ -85,3 +85,6 @@ yarn-error.*
 # User-specific folders
 %USERPROFILE%/
 .eas/env/
+
+# Keystore files (sensitive - contains private keys)
+*.keystore
